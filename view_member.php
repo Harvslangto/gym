@@ -113,30 +113,17 @@ if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
                 padding-bottom: 1.5rem;
             }
         }
-        @media (max-width: 576px) {
-            .premium-card {
-                background: #ffffff !important;
-                color: #000000 !important;
-            }
-            .detail-item {
-                background: #f8f9fa;
-                border: 1px solid #dee2e6;
-            }
-            .detail-label {
-                color: #6c757d;
-            }
-        }
     </style>
 </head>
 <body style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
 <div class="container-xl mt-3 mt-md-5">
     <div class="card premium-card" style="max-width: 900px; margin: auto;">
-        <div class="card-header border-0 bg-transparent d-flex justify-content-between align-items-center pt-4 px-4 flex-wrap gap-3">
-            <h4 class="mb-0 text-danger fw-bold"><i class="bi bi-person-vcard"></i> Member Profile</h4>
-            <div class="d-flex gap-2 flex-wrap">
+        <div class="card-header border-0 bg-transparent d-block d-md-flex justify-content-md-between align-items-md-center pt-4 px-4">
+            <h4 class="mb-3 mb-md-0 text-danger fw-bold"><i class="bi bi-person-vcard"></i> Member Profile</h4>
+            <div class="d-flex gap-2 flex-wrap justify-content-between justify-content-md-end">
                 <a href="renew_member.php?id=<?= $member['id'] ?>" class="btn btn-danger"><i class="bi bi-arrow-repeat"></i> Renew</a>
-                <a href="edit_member.php?id=<?= $member['id'] ?>" class="btn btn-outline-light"><i class="bi bi-pencil"></i> Edit</a>
-                <a href="index.php" class="btn btn-dark"><i class="bi bi-arrow-left"></i> Back</a>
+                <a href="edit_member.php?id=<?= $member['id'] ?>" class="btn btn-light"><i class="bi bi-pencil"></i> Edit</a>
+                <a href="index.php" class="btn btn-outline-light"><i class="bi bi-arrow-left"></i> Back</a>
             </div>
         </div>
         <div class="card-body p-3 p-md-4">

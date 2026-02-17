@@ -42,6 +42,11 @@ if(isset($_POST['update'])){
     $months = (int)$_POST['months'];
     $status = $_POST['status'];
 
+    // Validate dates to prevent 0000-00-00 errors
+    if(empty($start) || $start == '0000-00-00'){
+        $start = $member['start_date'];
+    }
+
     $is_walk_in_post = strpos($membership_type, 'Walk-in') !== false;
     
     $start_dt = new DateTime($start);
@@ -53,16 +58,26 @@ if(isset($_POST['update'])){
     }
     $end = $start_dt->format('Y-m-d');
 
-    // Validate dates to prevent 0000-00-00 errors
-    if(empty($start) || $start == '0000-00-00'){
-        $start = $member['start_date'];
-    }
     if(empty($end) || $end == '0000-00-00'){
         $end = $member['end_date'];
     }
 
     $photo_path = $member['photo'];
-    if(isset($_FILES['photo']['name']) && $_FILES['photo']['name'] != ""){
+    if(isset($_POST['cropped_image']) && !empty($_POST['cropped_image'])){
+        $data = $_POST['cropped_image'];
+        if (preg_match('/^data:image\/(\w+);base64,/', $data, $type)) {
+            $data = substr($data, strpos($data, ',') + 1);
+            $type = strtolower($type[1]); 
+            $data = base64_decode($data);
+            
+            if($data !== false){
+                $target_dir = "uploads/";
+                if(!is_dir($target_dir)) mkdir($target_dir);
+                $photo_path = $target_dir . uniqid() . "." . $type;
+                file_put_contents($photo_path, $data);
+            }
+        }
+    } elseif(isset($_FILES['photo']['name']) && $_FILES['photo']['name'] != ""){
         $check = getimagesize($_FILES["photo"]["tmp_name"]);
         if($check !== false) {
             $target_dir = "uploads/";
@@ -77,7 +92,13 @@ if(isset($_POST['update'])){
     $update->bind_param("ssssssdssssi", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $status, $photo_path, $id);
     
     if($update->execute()){
-        echo "<script>alert('Member Updated!'); window.location='view_member.php?id=$id';</script>";
+        // Re-fetch updated member data so the form shows new info
+        $stmt = $conn->prepare("SELECT * FROM members WHERE id = ?");
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $member = $stmt->get_result()->fetch_assoc();
+        $months_duration = (int)$_POST['months'];
+        $success = true;
     } else {
         echo "<div class='alert alert-danger'>Error updating member</div>";
     }
@@ -91,6 +112,7 @@ if(isset($_POST['update'])){
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
@@ -160,11 +182,15 @@ if(isset($_POST['update'])){
                     <textarea name="address" class="form-control" rows="2" required placeholder="Enter Complete Address"><?= htmlspecialchars($member['address']) ?></textarea>
                 </div>
                 <div class="row">
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Date of Birth</label>
                         <input type="date" name="birth_date" id="birth_date" class="form-control" value="<?= $member['birth_date'] ?>" required placeholder="Select Date of Birth">
                     </div>
-                    <div class="col-md-6 mb-3">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Age</label>
+                        <input type="text" id="age" class="form-control" readonly>
+                    </div>
+                    <div class="col-md-4 mb-3">
                         <label class="form-label">Sex</label>
                         <select name="gender" class="form-select" required>
                             <option value="" disabled>Select Sex</option>
@@ -217,13 +243,33 @@ if(isset($_POST['update'])){
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Photo</label>
-                    <input type="file" name="photo" class="form-control" accept="image/*">
-                    <?php if(!empty($member['photo'])): ?>
-                        <div class="mt-2">
-                            <small class="text-secondary">Current Photo:</small><br>
-                            <img src="<?= $member['photo'] ?>" class="rounded border border-secondary mt-1" style="width: 60px; height: 60px; object-fit: cover;">
+                    <input type="file" name="photo" id="photo_input" class="d-none" accept="image/*">
+                    <input type="hidden" name="cropped_image" id="cropped_image">
+                    
+                    <div class="mt-2" id="current_photo_container">
+                        <?php if(!empty($member['photo'])): ?>
+                            <div class="d-flex align-items-center">
+                                <img src="<?= $member['photo'] ?>" id="preview_image" class="rounded border border-secondary" style="width: 80px; height: 80px; object-fit: cover;">
+                                <button type="button" class="btn btn-outline-light btn-sm ms-3" onclick="document.getElementById('photo_input').click()">
+                                    <i class="bi bi-pencil"></i> Edit
+                                </button>
+                            </div>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-outline-light" onclick="document.getElementById('photo_input').click()">
+                                <i class="bi bi-upload"></i> Upload Photo
+                            </button>
+                        <?php endif; ?>
+                    </div>
+
+                    <div id="preview_container" class="mt-2" style="display:none;">
+                        <small class="text-secondary">New Photo:</small><br>
+                        <div class="d-flex align-items-center">
+                            <img id="new_preview_image" src="" class="rounded border border-secondary" style="width: 80px; height: 80px; object-fit: cover;">
+                            <button type="button" class="btn btn-outline-light btn-sm ms-3" onclick="document.getElementById('photo_input').click()">
+                                <i class="bi bi-pencil"></i> Change
+                            </button>
                         </div>
-                    <?php endif; ?>
+                    </div>
                 </div>
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
                     <a href="view_member.php?id=<?= $id ?>" class="btn btn-dark px-4">Cancel</a>
@@ -233,14 +279,81 @@ if(isset($_POST['update'])){
         </div>
     </div>
 </div>
+
+<?php if(isset($success) && $success): ?>
+<div class="modal fade" id="successModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">Success!</h4>
+                <p class="text-secondary mb-4">Member has been updated successfully.</p>
+                <button type="button" class="btn btn-danger w-100" onclick="window.location='view_member.php?id=<?= $id ?>'">Okay</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var myModal = new bootstrap.Modal(document.getElementById("successModal"));
+        myModal.show();
+    });
+</script>
+<?php endif; ?>
+
+<!-- Image Cropping Modal -->
+<div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Crop Profile Photo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="img-container" style="max-height: 60vh; height: 500px; overflow: hidden;">
+                    <img id="image_to_crop" src="" style="max-width: 100%; display: block; max-height: 100%;">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="crop_button">Crop & Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script src="js/main.js"></script>
 <script>
+    function calculateAge() {
+        const birthDateInput = document.getElementById('birth_date');
+        const ageInput = document.getElementById('age');
+        if (birthDateInput.value && birthDateInput.value !== '0000-00-00') {
+            const birthDate = new Date(birthDateInput.value);
+            if (!isNaN(birthDate.getTime())) {
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const m = today.getMonth() - birthDate.getMonth();
+                if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                ageInput.value = age;
+            }
+        } else {
+            ageInput.value = '';
+        }
+    }
+
     flatpickr("#birth_date", {
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "F j, Y",
-        maxDate: "today"
+        maxDate: "today",
+        onChange: function(selectedDates, dateStr, instance) {
+            calculateAge();
+        }
     });
     flatpickr("#start_date", {
         dateFormat: "Y-m-d",
@@ -258,6 +371,7 @@ if(isset($_POST['update'])){
 
     document.addEventListener("DOMContentLoaded", function() {
         calculateAmount(true);
+        calculateAge();
     });
 
     document.getElementById('membership_type').addEventListener('change', function() {
@@ -266,6 +380,64 @@ if(isset($_POST['update'])){
 
     document.getElementById('months').addEventListener('input', function() {
         calculateAmount(true);
+    });
+
+    // Image Cropper Logic
+    let cropper;
+    const photoInput = document.getElementById('photo_input');
+    const cropModalElement = document.getElementById('cropModal');
+    const cropModal = new bootstrap.Modal(cropModalElement);
+    const imageToCrop = document.getElementById('image_to_crop');
+    const cropButton = document.getElementById('crop_button');
+    const previewContainer = document.getElementById('preview_container');
+    const newPreviewImage = document.getElementById('new_preview_image');
+    const croppedImageInput = document.getElementById('cropped_image');
+    const currentPhotoContainer = document.getElementById('current_photo_container');
+
+    photoInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imageToCrop.src = e.target.result;
+                cropModal.show();
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    cropModalElement.addEventListener('shown.bs.modal', function () {
+        cropper = new Cropper(imageToCrop, {
+            aspectRatio: 1,
+            viewMode: 1,
+            autoCropArea: 1,
+            dragMode: 'move',
+            responsive: true,
+        });
+    });
+
+    cropModalElement.addEventListener('hidden.bs.modal', function () {
+        if(cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+        photoInput.value = '';
+    });
+
+    cropButton.addEventListener('click', function() {
+        if(cropper) {
+            const canvas = cropper.getCroppedCanvas({
+                width: 400,
+                height: 400,
+            });
+            const base64data = canvas.toDataURL('image/jpeg');
+            croppedImageInput.value = base64data;
+            newPreviewImage.src = base64data;
+            previewContainer.style.display = 'block';
+            if(currentPhotoContainer) currentPhotoContainer.style.display = 'none';
+            cropModal.hide();
+        }
     });
 </script>
 <style>

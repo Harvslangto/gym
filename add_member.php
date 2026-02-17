@@ -14,6 +14,7 @@ if(!isset($_SESSION['admin_id'])){
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
@@ -132,7 +133,11 @@ if(!isset($_SESSION['admin_id'])){
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Photo</label>
-                        <input type="file" name="photo" class="form-control" accept="image/*" required>
+                        <input type="file" name="photo" id="photo_input" class="form-control" accept="image/*" required>
+                        <input type="hidden" name="cropped_image" id="cropped_image">
+                        <div id="preview_container" class="mt-3" style="display:none;">
+                            <img id="preview_image" src="" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
+                        </div>
                     </div>
                 </div>
                 <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
@@ -197,7 +202,21 @@ if(!isset($_SESSION['admin_id'])){
 
                 // Handle File Upload
                 $photo_path = '';
-                if(isset($_FILES['photo']['name']) && $_FILES['photo']['name'] != ""){
+                if(isset($_POST['cropped_image']) && !empty($_POST['cropped_image'])){
+                    $data = $_POST['cropped_image'];
+                    if (preg_match('/^data:image\/(\w+);base64,/', $data, $type)) {
+                        $data = substr($data, strpos($data, ',') + 1);
+                        $type = strtolower($type[1]); 
+                        $data = base64_decode($data);
+                        
+                        if($data !== false){
+                            $target_dir = "uploads/";
+                            if(!is_dir($target_dir)) mkdir($target_dir);
+                            $photo_path = $target_dir . uniqid() . "." . $type;
+                            file_put_contents($photo_path, $data);
+                        }
+                    }
+                } elseif(isset($_FILES['photo']['name']) && $_FILES['photo']['name'] != ""){
                     $check = getimagesize($_FILES["photo"]["tmp_name"]);
                     if($check !== false) {
                         $target_dir = "uploads/";
@@ -244,8 +263,31 @@ if(!isset($_SESSION['admin_id'])){
         </div>
     </div>
 </div>
+
+<!-- Cropper Modal -->
+<div class="modal fade" id="cropModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content bg-dark text-white border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title">Crop Image</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="img-container" style="max-height: 60vh; height: 500px; overflow: hidden;">
+                    <img id="image_to_crop" src="" style="max-width: 100%; display: block; max-height: 100%;">
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="crop_button">Crop & Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
 <script src="js/main.js"></script>
 <script>
     flatpickr("#birth_date", {
@@ -272,6 +314,61 @@ if(!isset($_SESSION['admin_id'])){
 
     document.addEventListener("DOMContentLoaded", function() {
         calculateAmount();
+    });
+
+    // Cropper Logic
+    let cropper;
+    const photoInput = document.getElementById('photo_input');
+    const cropModalElement = document.getElementById('cropModal');
+    const cropModal = new bootstrap.Modal(cropModalElement);
+    const imageToCrop = document.getElementById('image_to_crop');
+    const cropButton = document.getElementById('crop_button');
+    const previewContainer = document.getElementById('preview_container');
+    const previewImage = document.getElementById('preview_image');
+    const croppedImageInput = document.getElementById('cropped_image');
+
+    photoInput.addEventListener('change', function(e) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                imageToCrop.src = e.target.result;
+                cropModal.show();
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+
+    cropModalElement.addEventListener('shown.bs.modal', function () {
+        cropper = new Cropper(imageToCrop, {
+            aspectRatio: 1, // Square crop for profile
+            viewMode: 1,
+            autoCropArea: 1,
+            dragMode: 'move',
+            responsive: true,
+        });
+    });
+
+    cropModalElement.addEventListener('hidden.bs.modal', function () {
+        if(cropper) {
+            cropper.destroy();
+            cropper = null;
+        }
+    });
+
+    cropButton.addEventListener('click', function() {
+        if(cropper) {
+            const canvas = cropper.getCroppedCanvas({
+                width: 400,
+                height: 400,
+            });
+            const base64data = canvas.toDataURL('image/jpeg');
+            croppedImageInput.value = base64data;
+            previewImage.src = base64data;
+            previewContainer.style.display = 'block';
+            cropModal.hide();
+        }
     });
 </script>
 <style>
