@@ -153,7 +153,7 @@ if(!isset($_SESSION['admin_id'])){
                 if($dup_res->num_rows > 0){
                     $existing_id = $dup_res->fetch_assoc()['id'];
                     echo '
-                    <div class="modal fade" id="duplicateModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+                   <div class="modal fade" id="duplicateModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
                                 <div class="modal-body text-center p-4">
@@ -217,7 +217,7 @@ if(!isset($_SESSION['admin_id'])){
                     $stmt_pay->bind_param("ids", $member_id, $amount, $start);
                     $stmt_pay->execute();
                     echo '
-                    <div class="modal fade" id="successModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+                   <div class="modal fade" id="successModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
                         <div class="modal-dialog modal-dialog-centered">
                             <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
                                 <div class="modal-body text-center p-4">
