@@ -163,7 +163,7 @@ if($type && $search){
                         }
                         
                         $days = (int)$diff->format('%r%a');
-                        if($days >= 0) $days++;
+                        if($days >= 0) $days = $days + 1;
                     ?>
                     <tr>
                         <td data-label="Name">

@@ -46,7 +46,7 @@ if($start_date > $now){
 }
 
 $remaining_days = (int)$diff->format('%r%a');
-if($remaining_days >= 0) $remaining_days++;
+if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
 ?>
 
 <!DOCTYPE html>
