@@ -36,9 +36,10 @@ if($type && $search){
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Gym Manager</title>
+    <title>Trizen Fitness Hub</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { font-family: 'Inter', sans-serif; }
@@ -51,8 +52,9 @@ if($type && $search){
             .table tbody tr {
                 display: block;
                 margin-bottom: 1rem;
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.1);
+                background: #ffffff;
+                color: #000000;
+                border: 1px solid #dee2e6;
                 border-radius: 12px;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.2);
             }
@@ -63,7 +65,7 @@ if($type && $search){
                 justify-content: space-between;
                 align-items: center;
                 padding: 0.8rem 1rem;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                border-bottom: 1px solid #f0f0f0;
                 text-align: right;
             }
             
@@ -71,7 +73,7 @@ if($type && $search){
             .table tbody td::before {
                 content: attr(data-label);
                 font-weight: 600;
-                color: #aaa;
+                color: #666;
                 text-align: left;
             }
             
@@ -197,5 +199,36 @@ if($type && $search){
         </div>
     </div>
 </div>
+<style>
+body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
+body.light-mode .bg-dark { background-color: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .border-secondary { border-color: #dee2e6 !important; }
+body.light-mode .table-dark { background-color: #fff !important; color: #212529 !important; }
+body.light-mode .table-dark th { background-color: #e9ecef !important; color: #212529 !important; border-color: #dee2e6 !important; }
+body.light-mode .table-dark td { background-color: #fff !important; color: #212529 !important; border-color: #dee2e6 !important; }
+body.light-mode .form-control, body.light-mode .form-select, body.light-mode .input-group-text, body.light-mode .detail-item { background-color: #fff !important; color: #212529 !important; border-color: #ced4da !important; }
+body.light-mode .form-control:focus, body.light-mode .form-select:focus { border-color: #dc3545 !important; }
+body.light-mode.text-white { color: #212529 !important; }
+body.light-mode .text-light, body.light-mode .text-muted { color: #6c757d !important; }
+body.light-mode .btn-outline-light { color: #212529; border-color: #212529; }
+body.light-mode .btn-outline-light:hover { color: #fff; background-color: #212529; }
+body.light-mode .card.bg-success, body.light-mode .card.bg-danger, body.light-mode .card.bg-secondary { color: #fff !important; }
+body.light-mode .form-label { color: #212529 !important; }
+body.light-mode .detail-label { color: #6c757d !important; }
+body.light-mode option { background-color: #fff !important; color: #212529 !important; }
+body.light-mode .table { color: #212529 !important; }
+body.light-mode .table tr, body.light-mode .table th, body.light-mode .table td { color: #212529 !important; }
+body.light-mode .table-striped > tbody > tr:nth-of-type(odd) > * { color: #212529 !important; }
+</style>
+<script>
+const themeBtn = document.createElement('button');
+themeBtn.className = 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow';
+themeBtn.style.width = '50px'; themeBtn.style.height = '50px'; themeBtn.style.zIndex = '9999';
+themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
+themeBtn.onclick = () => { document.body.classList.toggle('light-mode'); const isLight = document.body.classList.contains('light-mode'); localStorage.setItem('theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '<i class="bi bi-moon-fill"></i>' : '<i class="bi bi-sun-fill"></i>'; themeBtn.className = isLight ? 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border' : 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow'; };
+document.body.appendChild(themeBtn);
+if (localStorage.getItem('theme') === 'light') { document.body.classList.add('light-mode'); themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i>'; themeBtn.className = 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border'; }
+</script>
 </body>
 </html>

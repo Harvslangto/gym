@@ -5,6 +5,9 @@ if(!isset($_SESSION['admin_id'])){
     exit;
 }
 
+// Automatically update expired members
+$conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() AND status = 'Active'");
+
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 
 if($type){
@@ -34,6 +37,42 @@ if($type){
     $expired = $conn->query("SELECT COUNT(*) as count FROM members WHERE status='Expired'")->fetch_assoc()['count'];
     $total_income = $conn->query("SELECT SUM(amount) as sum FROM payments")->fetch_assoc()['sum'];
 }
+
+// Get Years for filter
+$years_q = $conn->query("SELECT DISTINCT YEAR(payment_date) as year FROM payments ORDER BY year DESC");
+$years = [];
+if($years_q->num_rows > 0){
+    while($y = $years_q->fetch_assoc()){
+        $years[] = $y['year'];
+    }
+} else {
+    $years[] = date('Y');
+}
+
+$selected_year = isset($_GET['year']) ? $_GET['year'] : $years[0];
+
+// Yearly Stats Query
+if($type){
+    $stmt_y = $conn->prepare("SELECT YEAR(p.payment_date) as year, COUNT(*) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? GROUP BY YEAR(p.payment_date) ORDER BY year DESC");
+    $stmt_y->bind_param("s", $type);
+    $stmt_y->execute();
+    $yearly_stats = $stmt_y->get_result();
+} else {
+    $yearly_stats = $conn->query("SELECT YEAR(payment_date) as year, COUNT(*) as count, SUM(amount) as revenue FROM payments GROUP BY YEAR(payment_date) ORDER BY year DESC");
+}
+
+// Monthly Stats Query
+if($type){
+    $stmt_m = $conn->prepare("SELECT MONTH(p.payment_date) as month, COUNT(*) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? GROUP BY MONTH(p.payment_date) ORDER BY month DESC");
+    $stmt_m->bind_param("si", $type, $selected_year);
+    $stmt_m->execute();
+    $monthly_stats = $stmt_m->get_result();
+} else {
+    $stmt_m = $conn->prepare("SELECT MONTH(payment_date) as month, COUNT(*) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? GROUP BY MONTH(payment_date) ORDER BY month DESC");
+    $stmt_m->bind_param("i", $selected_year);
+    $stmt_m->execute();
+    $monthly_stats = $stmt_m->get_result();
+}
 ?>
 
 <!DOCTYPE html>
@@ -42,6 +81,7 @@ if($type){
 <title>Dashboard</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
     body { font-family: 'Inter', sans-serif; }
     h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
@@ -64,6 +104,13 @@ if($type){
                 <option value="Student" <?= $type == 'Student' ? 'selected' : '' ?>>Student</option>
                 <option value="Walk-in Regular" <?= $type == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular</option>
                 <option value="Walk-in Student" <?= $type == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <select name="year" class="form-select">
+                <?php foreach($years as $y): ?>
+                    <option value="<?= $y ?>" <?= $selected_year == $y ? 'selected' : '' ?>><?= $y ?></option>
+                <?php endforeach; ?>
             </select>
         </div>
         <div class="col-auto">
@@ -111,7 +158,109 @@ if($type){
 </div>
 
 </div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card bg-dark text-white mb-3 border-secondary">
+            <div class="card-header border-secondary text-center">
+                <h5 class="mb-0">Yearly Overview</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-striped mb-0 text-center align-middle">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 33.33%">Year</th>
+                            <th class="text-center" style="width: 33.33%">Members</th>
+                            <th class="text-center" style="width: 33.33%">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while($row = $yearly_stats->fetch_assoc()): ?>
+                        <tr>
+                            <td class="text-center"><?= $row['year'] ?></td>
+                            <td class="text-center"><?= $row['count'] ?></td>
+                            <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card bg-dark text-white mb-3 border-secondary">
+            <div class="card-header border-secondary text-center">
+                <h5 class="mb-0">Monthly Breakdown (<?= $selected_year ?>)</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-striped mb-0 text-center align-middle">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 33.33%">Month</th>
+                            <th class="text-center" style="width: 33.33%">Members</th>
+                            <th class="text-center" style="width: 33.33%">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        if($monthly_stats->num_rows > 0):
+                            while($row = $monthly_stats->fetch_assoc()): 
+                                $dateObj   = DateTime::createFromFormat('!m', $row['month']);
+                                $monthName = $dateObj->format('F');
+                        ?>
+                        <tr>
+                            <td class="text-center"><?= $monthName ?></td>
+                            <td class="text-center"><?= $row['count'] ?></td>
+                            <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                        </tr>
+                        <?php 
+                            endwhile; 
+                        else:
+                        ?>
+                        <tr><td colspan="3" class="text-center text-muted">No data for this year</td></tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
 <a href="index.php" class="btn btn-outline-light mt-3">Go to Member List</a>
 </div>
+<style>
+body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
+body.light-mode.text-white { color: #212529 !important; }
+body.light-mode h1, body.light-mode h2, body.light-mode h3, body.light-mode h4, body.light-mode h5, body.light-mode h6 { color: #212529 !important; }
+body.light-mode .bg-dark { background-color: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .border-secondary { border-color: #dee2e6 !important; }
+body.light-mode .table-dark { --bs-table-bg: transparent !important; --bs-table-striped-bg: transparent !important; background-color: transparent !important; color: #000000 !important; }
+body.light-mode .table-dark th { background-color: transparent !important; color: #000000 !important; border-color: #dee2e6 !important; }
+body.light-mode .table-dark td { background-color: transparent !important; color: #000000 !important; border-color: #dee2e6 !important; }
+body.light-mode .table-dark.table-striped > tbody > tr:nth-of-type(odd) > * { background-color: transparent !important; color: #000000 !important; --bs-table-accent-bg: transparent !important; }
+body.light-mode .table-dark, body.light-mode .table-dark th, body.light-mode .table-dark td, body.light-mode .table-dark tr { color: #000000 !important; background-color: transparent !important; }
+body.light-mode .form-control, body.light-mode .form-select, body.light-mode .input-group-text, body.light-mode .detail-item { background-color: #fff !important; color: #212529 !important; border-color: #ced4da !important; }
+body.light-mode .card.bg-success, body.light-mode .card.bg-danger, body.light-mode .card.bg-secondary, body.light-mode .card.bg-success h5, body.light-mode .card.bg-danger h5, body.light-mode .card.bg-secondary h5, body.light-mode .card.bg-success .card-text, body.light-mode .card.bg-danger .card-text, body.light-mode .card.bg-secondary .card-text { color: #fff !important; }
+body.light-mode .form-control:focus, body.light-mode .form-select:focus { border-color: #dc3545 !important; }
+body.light-mode .text-white { color: #212529 !important; }
+body.light-mode .text-light, body.light-mode .text-muted { color: #6c757d !important; }
+body.light-mode .btn-outline-light { color: #212529; border-color: #212529; }
+body.light-mode .btn-outline-light:hover { color: #fff; background-color: #212529; }
+body.light-mode .card.bg-success, body.light-mode .card.bg-danger, body.light-mode .card.bg-secondary { color: #fff !important; }
+body.light-mode .form-label { color: #212529 !important; }
+body.light-mode .detail-label { color: #6c757d !important; }
+body.light-mode option { background-color: #fff !important; color: #212529 !important; }
+.card .table th, .card .table td { text-align: center !important; vertical-align: middle !important; }
+</style>
+<script>
+const themeBtn = document.createElement('button');
+themeBtn.className = 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow';
+themeBtn.style.width = '50px'; themeBtn.style.height = '50px'; themeBtn.style.zIndex = '9999';
+themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
+themeBtn.onclick = () => { document.body.classList.toggle('light-mode'); const isLight = document.body.classList.contains('light-mode'); localStorage.setItem('theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '<i class="bi bi-moon-fill"></i>' : '<i class="bi bi-sun-fill"></i>'; themeBtn.className = isLight ? 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border' : 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow'; };
+document.body.appendChild(themeBtn);
+if (localStorage.getItem('theme') === 'light') { document.body.classList.add('light-mode'); themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i>'; themeBtn.className = 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border'; }
+</script>
 </body>
 </html>

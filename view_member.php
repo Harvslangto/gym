@@ -10,6 +10,9 @@ if(!isset($_GET['id'])){
     exit;
 }
 
+// Automatically update expired members
+$conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() AND status = 'Active'");
+
 $id = $_GET['id'];
 $stmt = $conn->prepare("SELECT * FROM members WHERE id = ?");
 $stmt->bind_param("i", $id);
@@ -110,6 +113,19 @@ if($remaining_days >= 0) $remaining_days++;
                 padding-bottom: 1.5rem;
             }
         }
+        @media (max-width: 576px) {
+            .premium-card {
+                background: #ffffff !important;
+                color: #000000 !important;
+            }
+            .detail-item {
+                background: #f8f9fa;
+                border: 1px solid #dee2e6;
+            }
+            .detail-label {
+                color: #6c757d;
+            }
+        }
     </style>
 </head>
 <body style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
@@ -142,7 +158,7 @@ if($remaining_days >= 0) $remaining_days++;
                         </span>
                     </div>
                     <div class="p-3 rounded bg-dark mb-3 border border-secondary">
-                        <small class="text-muted d-block">Days remaining</small>
+                        <small class="text-light d-block">Days remaining</small>
                         <?php if($remaining_days >= 0): ?>
                             <h2 class="text-success fw-bold mb-0"><?= $remaining_days ?></h2>
                         <?php else: ?>
@@ -173,5 +189,33 @@ if($remaining_days >= 0) $remaining_days++;
         </div>
     </div>
 </div>
+<style>
+body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
+body.light-mode .bg-dark { background-color: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .border-secondary { border-color: #dee2e6 !important; }
+body.light-mode .table-dark { background-color: #fff !important; color: #212529 !important; }
+body.light-mode .table-dark th { background-color: #343a40 !important; color: #fff !important; }
+body.light-mode .table-dark td { background-color: #fff !important; color: #212529 !important; border-color: #dee2e6 !important; }
+body.light-mode .form-control, body.light-mode .form-select, body.light-mode .input-group-text, body.light-mode .detail-item { background-color: #fff !important; color: #212529 !important; border-color: #ced4da !important; }
+body.light-mode .form-control:focus, body.light-mode .form-select:focus { border-color: #dc3545 !important; }
+body.light-mode .text-white { color: #212529 !important; }
+body.light-mode .text-light, body.light-mode .text-muted { color: #6c757d !important; }
+body.light-mode .btn-outline-light { color: #212529; border-color: #212529; }
+body.light-mode .btn-outline-light:hover { color: #fff; background-color: #212529; }
+body.light-mode .card.bg-success, body.light-mode .card.bg-danger, body.light-mode .card.bg-secondary { color: #fff !important; }
+body.light-mode .form-label { color: #212529 !important; }
+body.light-mode .detail-label { color: #6c757d !important; }
+body.light-mode option { background-color: #fff !important; color: #212529 !important; }
+</style>
+<script>
+const themeBtn = document.createElement('button');
+themeBtn.className = 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow';
+themeBtn.style.width = '50px'; themeBtn.style.height = '50px'; themeBtn.style.zIndex = '9999';
+themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
+themeBtn.onclick = () => { document.body.classList.toggle('light-mode'); const isLight = document.body.classList.contains('light-mode'); localStorage.setItem('theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '<i class="bi bi-moon-fill"></i>' : '<i class="bi bi-sun-fill"></i>'; themeBtn.className = isLight ? 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border' : 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow'; };
+document.body.appendChild(themeBtn);
+if (localStorage.getItem('theme') === 'light') { document.body.classList.add('light-mode'); themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i>'; themeBtn.className = 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border'; }
+</script>
 </body>
 </html>

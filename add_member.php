@@ -144,6 +144,37 @@ if(!isset($_SESSION['admin_id'])){
             <?php
             if(isset($_POST['save'])){
                 $name = $_POST['name'];
+                
+                $check = $conn->prepare("SELECT id FROM members WHERE full_name = ?");
+                $check->bind_param("s", $name);
+                $check->execute();
+                $dup_res = $check->get_result();
+
+                if($dup_res->num_rows > 0){
+                    $existing_id = $dup_res->fetch_assoc()['id'];
+                    echo '
+                    <div class="modal fade" id="duplicateModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+                                <div class="modal-body text-center p-4">
+                                    <i class="bi bi-exclamation-circle-fill text-warning" style="font-size: 3rem;"></i>
+                                    <h4 class="mt-3 fw-bold">Member Exists</h4>
+                                    <p class="text-secondary mb-4">User already exists. Want to update infos?</p>
+                                    <div class="d-grid gap-2">
+                                        <button type="button" class="btn btn-danger" onclick="window.location.href=\'edit_member.php?id=' . $existing_id . '\'">Yes, Update Info</button>
+                                        <button type="button" class="btn btn-dark" data-bs-dismiss="modal">No, Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <script>
+                        document.addEventListener("DOMContentLoaded", function() {
+                            var myModal = new bootstrap.Modal(document.getElementById("duplicateModal"));
+                            myModal.show();
+                        });
+                    </script>';
+                } else {
                 $contact = $_POST['contact'];
                 $start = $_POST['start'];
                 $months = (int)$_POST['months'];
@@ -207,6 +238,7 @@ if(!isset($_SESSION['admin_id'])){
                 } else {
                     echo "<div class='alert alert-danger'>Error: " . $stmt->error . "</div>";
                 }
+                }
             }
             ?>
         </div>
@@ -241,6 +273,34 @@ if(!isset($_SESSION['admin_id'])){
     document.addEventListener("DOMContentLoaded", function() {
         calculateAmount();
     });
+</script>
+<style>
+body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
+body.light-mode .bg-dark { background-color: #f8f9fa !important; color: #212529 !important; }
+body.light-mode .border-secondary { border-color: #dee2e6 !important; }
+body.light-mode .table-dark { background-color: #fff !important; color: #212529 !important; }
+body.light-mode .table-dark th { background-color: #343a40 !important; color: #fff !important; }
+body.light-mode .table-dark td { background-color: #fff !important; color: #212529 !important; border-color: #dee2e6 !important; }
+body.light-mode .form-control, body.light-mode .form-select, body.light-mode .input-group-text, body.light-mode .detail-item { background-color: #fff !important; color: #212529 !important; border-color: #ced4da !important; }
+body.light-mode .form-control:focus, body.light-mode .form-select:focus { border-color: #dc3545 !important; }
+body.light-mode .text-white { color: #212529 !important; }
+body.light-mode .text-light, body.light-mode .text-muted { color: #6c757d !important; }
+body.light-mode .btn-outline-light { color: #212529; border-color: #212529; }
+body.light-mode .btn-outline-light:hover { color: #fff; background-color: #212529; }
+body.light-mode .card.bg-success, body.light-mode .card.bg-danger, body.light-mode .card.bg-secondary { color: #fff !important; }
+body.light-mode .form-label { color: #212529 !important; }
+body.light-mode .detail-label { color: #6c757d !important; }
+body.light-mode option { background-color: #fff !important; color: #212529 !important; }
+</style>
+<script>
+const themeBtn = document.createElement('button');
+themeBtn.className = 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow';
+themeBtn.style.width = '50px'; themeBtn.style.height = '50px'; themeBtn.style.zIndex = '9999';
+themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
+themeBtn.onclick = () => { document.body.classList.toggle('light-mode'); const isLight = document.body.classList.contains('light-mode'); localStorage.setItem('theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '<i class="bi bi-moon-fill"></i>' : '<i class="bi bi-sun-fill"></i>'; themeBtn.className = isLight ? 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border' : 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow'; };
+document.body.appendChild(themeBtn);
+if (localStorage.getItem('theme') === 'light') { document.body.classList.add('light-mode'); themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i>'; themeBtn.className = 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border'; }
 </script>
 </body>
 </html>
