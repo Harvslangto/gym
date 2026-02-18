@@ -295,17 +295,22 @@ if($type){
 <div class="row">
     <div class="col-12">
         <div class="card premium-card mb-3">
-            <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-bottom: 1px solid #4a0000;">
-                <h5 class="mb-0 text-uppercase" style="letter-spacing: 1px;">Daily Breakdown (<?= date('F', mktime(0, 0, 0, $selected_month, 10)) ?> <?= $selected_year ?>)</h5>
-                <div class="d-flex align-items-center gap-2">
-                    <select class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;" onchange="window.location.href='dashboard.php?type='+encodeURIComponent(this.value)+'&year=<?= $selected_year ?>&month=<?= $selected_month ?>'">
+            <div class="card-header bg-transparent d-flex justify-content-center justify-content-md-between align-items-center flex-wrap gap-3" style="border-bottom: 1px solid #4a0000;">
+                <h5 class="mb-0 text-uppercase text-center" style="letter-spacing: 1px;">Daily Breakdown (<?= date('F', mktime(0, 0, 0, $selected_month, 10)) ?> <?= $selected_year ?>)</h5>
+                <form method="GET" class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
+                    <select name="type" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
                         <option value="">All Types</option>
                         <option value="Regular" <?= $type == 'Regular' ? 'selected' : '' ?>>Regular</option>
                         <option value="Student" <?= $type == 'Student' ? 'selected' : '' ?>>Student</option>
                         <option value="Walk-in Regular" <?= $type == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular</option>
                         <option value="Walk-in Student" <?= $type == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student</option>
                     </select>
-                    <select class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;" onchange="window.location.href='dashboard.php?type=<?= urlencode($type) ?>&year=<?= $selected_year ?>&month='+this.value">
+                    <select name="year" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
+                        <?php foreach($years as $y): ?>
+                            <option value="<?= $y ?>" <?= $selected_year == $y ? 'selected' : '' ?>><?= $y ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select name="month" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
                         <?php 
                         for($m=1; $m<=12; $m++){
                             $monthName = date('F', mktime(0, 0, 0, $m, 10));
@@ -314,11 +319,7 @@ if($type){
                         }
                         ?>
                     </select>
-
-                    <?php if($selected_day): ?>
-                        <a href="dashboard.php?type=<?= urlencode($type) ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>" class="btn btn-sm btn-outline-light" title="Show All Days"><i class="bi bi-calendar3"></i> All</a>
-                    <?php endif; ?>
-                    <select class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;" onchange="window.location.href='dashboard.php?type=<?= urlencode($type) ?>&year=<?= $selected_year ?>&month=<?= $selected_month ?>&day='+this.value">
+                    <select name="day" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
                         <option value="">All Days</option>
                         <?php 
                         $current_d = date('j');
@@ -332,7 +333,9 @@ if($type){
                         }
                         ?>
                     </select>
-                </div>
+                    <button type="submit" class="btn btn-sm btn-danger">Filter</button>
+                    <a href="dashboard.php" class="btn btn-sm btn-outline-light">Reset</a>
+                </form>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
