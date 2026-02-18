@@ -50,6 +50,8 @@ if($years_q->num_rows > 0){
 }
 
 $selected_year = isset($_GET['year']) ? $_GET['year'] : $years[0];
+$selected_month = isset($_GET['month']) ? $_GET['month'] : date('n');
+$selected_day = isset($_GET['day']) ? $_GET['day'] : '';
 
 // Yearly Stats Query
 if($type){
@@ -72,6 +74,29 @@ if($type){
     $stmt_m->bind_param("i", $selected_year);
     $stmt_m->execute();
     $monthly_stats = $stmt_m->get_result();
+}
+
+// Daily Stats Query
+if($type){
+    if($selected_day){
+        $stmt_d = $conn->prepare("SELECT DATE(p.payment_date) as date, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? AND MONTH(p.payment_date) = ? AND DAY(p.payment_date) = ? GROUP BY DATE(p.payment_date) ORDER BY date DESC");
+        $stmt_d->bind_param("siii", $type, $selected_year, $selected_month, $selected_day);
+    } else {
+        $stmt_d = $conn->prepare("SELECT DATE(p.payment_date) as date, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? AND MONTH(p.payment_date) = ? GROUP BY DATE(p.payment_date) ORDER BY date DESC");
+        $stmt_d->bind_param("sii", $type, $selected_year, $selected_month);
+    }
+    $stmt_d->execute();
+    $daily_stats = $stmt_d->get_result();
+} else {
+    if($selected_day){
+        $stmt_d = $conn->prepare("SELECT DATE(payment_date) as date, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? AND MONTH(payment_date) = ? AND DAY(payment_date) = ? GROUP BY DATE(payment_date) ORDER BY date DESC");
+        $stmt_d->bind_param("iii", $selected_year, $selected_month, $selected_day);
+    } else {
+        $stmt_d = $conn->prepare("SELECT DATE(payment_date) as date, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? AND MONTH(payment_date) = ? GROUP BY DATE(payment_date) ORDER BY date DESC");
+        $stmt_d->bind_param("ii", $selected_year, $selected_month);
+    }
+    $stmt_d->execute();
+    $daily_stats = $stmt_d->get_result();
 }
 ?>
 
@@ -131,7 +156,8 @@ if($type){
         color: white;
         box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
     }
-    option { background-color: #222; color: white; }
+    .form-control::placeholder { color: rgba(255, 255, 255, 0.7); opacity: 1; }
+    option { background-color: #fff; color: #000; }
     
     /* Premium Button Styles */
     .btn-danger {
@@ -198,35 +224,11 @@ if($type){
 <div class="container-xl my-3">
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <h2 class="mb-0 text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Gym Dashboard</h2>
-    <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
-</div>
-
-<form method="GET" class="mt-4">
-    <div class="row g-2">
-        <div class="col-auto">
-            <select name="type" class="form-select">
-                <option value="">All Types</option>
-                <option value="Regular" <?= $type == 'Regular' ? 'selected' : '' ?>>Regular</option>
-                <option value="Student" <?= $type == 'Student' ? 'selected' : '' ?>>Student</option>
-                <option value="Walk-in Regular" <?= $type == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular</option>
-                <option value="Walk-in Student" <?= $type == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student</option>
-            </select>
-        </div>
-        <div class="col-auto">
-            <select name="year" class="form-select">
-                <?php foreach($years as $y): ?>
-                    <option value="<?= $y ?>" <?= $selected_year == $y ? 'selected' : '' ?>><?= $y ?></option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="col-auto">
-            <button class="btn btn-dark">Filter</button>
-        </div>
-        <div class="col-auto ms-auto">
-            <a href="index.php" class="btn btn-outline-light">Go to Member List</a>
-        </div>
+    <div class="d-flex gap-2">
+        <a href="index.php" class="btn btn-outline-light btn-sm">Go to Member List</a>
+        <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
     </div>
-</form>
+</div>
 
 <div class="row mt-4 mb-4 g-3">
     <!-- Total Members -->
@@ -284,6 +286,82 @@ if($type){
                 </div>
                 <div class="icon-box">
                     <i class="bi bi-wallet2 text-danger fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card premium-card mb-3">
+            <div class="card-header bg-transparent d-flex justify-content-between align-items-center flex-wrap gap-2" style="border-bottom: 1px solid #4a0000;">
+                <h5 class="mb-0 text-uppercase" style="letter-spacing: 1px;">Daily Breakdown (<?= date('F', mktime(0, 0, 0, $selected_month, 10)) ?> <?= $selected_year ?>)</h5>
+                <div class="d-flex align-items-center gap-2">
+                    <select class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;" onchange="window.location.href='dashboard.php?type='+encodeURIComponent(this.value)+'&year=<?= $selected_year ?>&month=<?= $selected_month ?>'">
+                        <option value="">All Types</option>
+                        <option value="Regular" <?= $type == 'Regular' ? 'selected' : '' ?>>Regular</option>
+                        <option value="Student" <?= $type == 'Student' ? 'selected' : '' ?>>Student</option>
+                        <option value="Walk-in Regular" <?= $type == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular</option>
+                        <option value="Walk-in Student" <?= $type == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student</option>
+                    </select>
+                    <select class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;" onchange="window.location.href='dashboard.php?type=<?= urlencode($type) ?>&year=<?= $selected_year ?>&month='+this.value">
+                        <?php 
+                        for($m=1; $m<=12; $m++){
+                            $monthName = date('F', mktime(0, 0, 0, $m, 10));
+                            $selected = ($selected_month == $m) ? 'selected' : '';
+                            echo "<option value='$m' $selected>$monthName</option>";
+                        }
+                        ?>
+                    </select>
+
+                    <?php if($selected_day): ?>
+                        <a href="dashboard.php?type=<?= urlencode($type) ?>&month=<?= $selected_month ?>&year=<?= $selected_year ?>" class="btn btn-sm btn-outline-light" title="Show All Days"><i class="bi bi-calendar3"></i> All</a>
+                    <?php endif; ?>
+                    <select class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;" onchange="window.location.href='dashboard.php?type=<?= urlencode($type) ?>&year=<?= $selected_year ?>&month=<?= $selected_month ?>&day='+this.value">
+                        <option value="">All Days</option>
+                        <?php 
+                        $current_d = date('j');
+                        $current_m = date('n');
+                        $current_y = date('Y');
+
+                        for($d=31; $d>=1; $d--){
+                            $sel = ($selected_day == $d) ? 'selected' : '';
+                            $label = ($selected_month == $current_m && $selected_year == $current_y && $d == $current_d) ? "Today" : $d;
+                            echo "<option value='$d' $sel>$label</option>";
+                        }
+                        ?>
+                    </select>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                    <table class="table table-hover mb-0 text-center align-middle">
+                        <thead style="position: sticky; top: 0; z-index: 1;">
+                            <tr>
+                                <th class="text-center" style="width: 33.33%">Date</th>
+                                <th class="text-center" style="width: 33.33%">Members</th>
+                                <th class="text-center" style="width: 33.33%">Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            if($daily_stats->num_rows > 0):
+                                while($row = $daily_stats->fetch_assoc()): 
+                            ?>
+                            <tr>
+                                <td class="text-center"><?= date('M d, Y', strtotime($row['date'])) ?></td>
+                                <td class="text-center"><?= $row['count'] ?></td>
+                                <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                            </tr>
+                            <?php 
+                                endwhile; 
+                            else:
+                            ?>
+                            <tr><td colspan="3" class="text-center text-muted">No data for this month</td></tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

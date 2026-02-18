@@ -63,7 +63,7 @@ if(!isset($_SESSION['admin_id'])){
         }
         option {
             background-color: #222;
-            color: white;
+            color: #000;
         }
         @media (min-width: 768px) {
             .container-xl {

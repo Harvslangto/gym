@@ -38,7 +38,7 @@ if($type && $search){
 <head>
     <title>Trizen Fitness Hub</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Russo+One&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
@@ -49,7 +49,86 @@ if($type && $search){
             display: flex;
             flex-direction: column;
         }
-        h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Russo One', sans-serif; letter-spacing: 1px; }
+        .premium-card {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #4a0000;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(220, 53, 69, 0.15);
+            color: white;
+            overflow: hidden;
+        }
+        .form-control, .form-select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .form-control:focus, .form-select:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #dc3545;
+            color: white;
+            box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+        }
+        .form-control::placeholder { color: #aaa; }
+        .table { color: #e0e0e0; margin-bottom: 0; }
+        .table thead th {
+            background-color: rgba(220, 53, 69, 0.15);
+            color: #ff6b6b;
+            border-bottom: 1px solid #4a0000;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            padding: 1rem;
+        }
+        .table tbody td {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            vertical-align: middle;
+        }
+        .table-hover tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: white;
+        }
+        option { background-color: #222; color: #000; }
+        
+        /* Premium Button Styles */
+        .btn-danger {
+            background: linear-gradient(45deg, #8b0000, #dc3545);
+            border: none;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+            transition: all 0.3s ease;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+        .btn-danger:hover {
+            background: linear-gradient(45deg, #dc3545, #ff4d4d);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
+        }
+        .btn-dark {
+            background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-dark:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            background: linear-gradient(145deg, #2c2c2c, #3d3d3d);
+        }
+        .btn-outline-light {
+            border-width: 2px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        .btn-outline-light:hover {
+            background: rgba(255,255,255,0.1);
+            color: white;
+            border-color: white;
+            transform: translateY(-2px);
+        }
+        
         @media (max-width: 576px) {
             /* Hide table headers */
             .table thead { display: none; }
@@ -58,11 +137,11 @@ if($type && $search){
             .table tbody tr {
                 display: block;
                 margin-bottom: 1rem;
-                background: #ffffff;
-                color: #000000;
-                border: 1px solid #dee2e6;
+                background: rgba(255, 255, 255, 0.05);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.1);
                 border-radius: 12px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             }
             
             /* Flex layout for cells */
@@ -71,7 +150,7 @@ if($type && $search){
                 justify-content: space-between;
                 align-items: center;
                 padding: 0.8rem 1rem;
-                border-bottom: 1px solid #f0f0f0;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
                 text-align: right;
             }
             
@@ -79,17 +158,18 @@ if($type && $search){
             .table tbody td::before {
                 content: attr(data-label);
                 font-weight: 600;
-                color: #666;
+                color: #aaa;
                 text-align: left;
             }
             
             /* Name styling (Card Header) */
             .table tbody td:first-child {
-                background: rgba(220, 53, 69, 0.1);
+                background: rgba(220, 53, 69, 0.2);
                 justify-content: center;
                 font-size: 1.1rem;
                 border-radius: 12px 12px 0 0;
-                border-bottom: 1px solid rgba(220, 53, 69, 0.2);
+                border-bottom: 1px solid rgba(220, 53, 69, 0.3);
+                color: white;
             }
             .table tbody td:first-child::before { display: none; }
             
@@ -109,7 +189,7 @@ if($type && $search){
 <div class="container-xl my-3">
 
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        <h2>Gym Members <span class="badge bg-secondary fs-5"><?= $result->num_rows ?></span></h2>
+        <h2 class="text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Gym Members <span class="badge bg-danger fs-6 align-middle ms-2" style="box-shadow: 0 0 10px rgba(220,53,69,0.5);"><?= $result->num_rows ?></span></h2>
         <div class="d-flex gap-2 flex-wrap">
             <a href="add_member.php" class="btn btn-danger">+ Add Member</a>
             <a href="dashboard.php" class="btn btn-dark text-white">Dashboard</a>
@@ -140,11 +220,11 @@ if($type && $search){
         </div>
     </form>
 
-    <div class="card shadow-sm">
-        <div class="card-body">
+    <div class="card premium-card">
+        <div class="card-body p-0">
             <div class="table-responsive">
-            <table class="table table-striped table-hover mb-0 align-middle">
-                <thead class="table-dark">
+            <table class="table table-hover mb-0 align-middle">
+                <thead>
                     <tr>
                         <th>Name</th>
                         <th>Type</th>
@@ -244,6 +324,13 @@ body.light-mode option { background-color: #fff !important; color: #212529 !impo
 body.light-mode .table { color: #212529 !important; }
 body.light-mode .table tr, body.light-mode .table th, body.light-mode .table td { color: #212529 !important; }
 body.light-mode .table-striped > tbody > tr:nth-of-type(odd) > * { color: #212529 !important; }
+body.light-mode .table thead th { background-color: #f8f9fa !important; color: #212529 !important; border-bottom-color: #dee2e6 !important; }
+body.light-mode .table tbody td { border-bottom-color: #dee2e6 !important; }
+body.light-mode .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05) !important; color: #212529 !important; }
+@media (max-width: 576px) {
+    body.light-mode .table tbody tr { background: #fff !important; border: 1px solid #dee2e6 !important; }
+    body.light-mode .table tbody td:first-child { background: rgba(220, 53, 69, 0.1) !important; color: #dc3545 !important; border-bottom-color: rgba(220, 53, 69, 0.2) !important; }
+}
 </style>
 <script>
 const themeBtn = document.createElement('button');
