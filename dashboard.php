@@ -80,16 +80,116 @@ if($type){
 <head>
 <title>Dashboard</title>
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Russo+One&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
     body { font-family: 'Inter', sans-serif; }
-    h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
+    h1, h2, h3, h4, h5, h6 { font-family: 'Russo One', sans-serif; letter-spacing: 1px; }
     body {
         background: linear-gradient(135deg, #000000, #4a0000);
         min-height: 100vh;
         display: flex;
         flex-direction: column;
+    }
+    .stat-card {
+        background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
+        border-radius: 15px;
+        border: 1px solid #4a0000;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+    .stat-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+    }
+    .icon-box {
+        width: 50px; 
+        height: 50px; 
+        background: rgba(0,0,0,0.3);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    .premium-card {
+        background: rgba(20, 20, 20, 0.95);
+        border: 1px solid #4a0000;
+        border-radius: 15px;
+        box-shadow: 0 0 30px rgba(220, 53, 69, 0.15);
+        color: white;
+        overflow: hidden;
+    }
+    .form-control, .form-select {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: white;
+    }
+    .form-control:focus, .form-select:focus {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: #dc3545;
+        color: white;
+        box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+    }
+    option { background-color: #222; color: white; }
+    
+    /* Premium Button Styles */
+    .btn-danger {
+        background: linear-gradient(45deg, #8b0000, #dc3545);
+        border: none;
+        box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        transition: all 0.3s ease;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+    .btn-danger:hover {
+        background: linear-gradient(45deg, #dc3545, #ff4d4d);
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(220, 53, 69, 0.5);
+    }
+    .btn-dark {
+        background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        transition: all 0.3s ease;
+    }
+    .btn-dark:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+        background: linear-gradient(145deg, #2c2c2c, #3d3d3d);
+    }
+    .btn-outline-light {
+        border-width: 2px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+    .btn-outline-light:hover {
+        background: rgba(255,255,255,0.1);
+        color: white;
+        border-color: white;
+        transform: translateY(-2px);
+    }
+
+    /* Table Styles */
+    .table { color: #e0e0e0; margin-bottom: 0; }
+    .table thead th {
+        background-color: rgba(220, 53, 69, 0.15);
+        color: #ff6b6b;
+        border-bottom: 1px solid #4a0000;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 1px;
+        padding: 1rem;
+    }
+    .table tbody td {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 1rem;
+        vertical-align: middle;
+    }
+    .table-hover tbody tr:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+        color: white;
     }
 </style>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -97,7 +197,7 @@ if($type){
 <body class="text-white">
 <div class="container-xl my-3">
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-    <h2 class="mb-0">Gym Dashboard</h2>
+    <h2 class="mb-0 text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Gym Dashboard</h2>
     <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
 </div>
 
@@ -128,54 +228,76 @@ if($type){
     </div>
 </form>
 
-<div class="row mt-4">
+<div class="row mt-4 mb-4 g-3">
+    <!-- Total Members -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card stat-card h-100 border-0">
+            <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem; letter-spacing: 1.5px;">Total Members</h6>
+                    <h2 class="mb-0 fw-bold text-white"><?= $total ?></h2>
+                </div>
+                <div class="icon-box">
+                    <i class="bi bi-people text-danger fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<div class="col-12 col-sm-6 col-md-3">
-<div class="card text-white bg-dark mb-3">
-  <div class="card-body">
-    <h5 class="card-title">Total Members</h5>
-    <p class="card-text"><?= $total ?></p>
-  </div>
-</div>
-</div>
+    <!-- Active Members -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card stat-card h-100 border-0" style="border-bottom: 3px solid #198754 !important;">
+            <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem; letter-spacing: 1.5px;">Active</h6>
+                    <h2 class="mb-0 fw-bold text-success"><?= $active ?></h2>
+                </div>
+                <div class="icon-box">
+                    <i class="bi bi-person-check text-success fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<div class="col-12 col-sm-6 col-md-3">
-<div class="card text-white bg-success mb-3">
-  <div class="card-body">
-    <h5 class="card-title">Active Members</h5>
-    <p class="card-text"><?= $active ?></p>
-  </div>
-</div>
-</div>
+    <!-- Expired Members -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card stat-card h-100 border-0" style="border-bottom: 3px solid #6c757d !important;">
+            <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem; letter-spacing: 1.5px;">Expired</h6>
+                    <h2 class="mb-0 fw-bold text-secondary"><?= $expired ?></h2>
+                </div>
+                <div class="icon-box">
+                    <i class="bi bi-person-x text-secondary fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 
-<div class="col-12 col-sm-6 col-md-3">
-<div class="card text-white bg-secondary mb-3">
-  <div class="card-body">
-    <h5 class="card-title">Expired Members</h5>
-    <p class="card-text"><?= $expired ?></p>
-  </div>
-</div>
-</div>
-
-<div class="col-12 col-sm-6 col-md-3">
-<div class="card text-white bg-danger mb-3">
-  <div class="card-body">
-    <h5 class="card-title">Total Income</h5>
-    <p class="card-text">₱<?= $total_income ?: 0 ?></p>
-  </div>
-</div>
-</div>
-
+    <!-- Total Income -->
+    <div class="col-12 col-sm-6 col-lg-3">
+        <div class="card stat-card h-100 border-0" style="border-bottom: 3px solid #dc3545 !important;">
+            <div class="card-body p-4 d-flex align-items-center justify-content-between">
+                <div>
+                    <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem; letter-spacing: 1.5px;">Total Income</h6>
+                    <h2 class="mb-0 fw-bold text-danger">₱<?= number_format($total_income ?: 0, 2) ?></h2>
+                </div>
+                <div class="icon-box">
+                    <i class="bi bi-wallet2 text-danger fs-4"></i>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row">
     <div class="col-md-6">
-        <div class="card bg-dark text-white mb-3 border-secondary">
-            <div class="card-header border-secondary text-center">
-                <h5 class="mb-0">Monthly Breakdown (<?= $selected_year ?>)</h5>
+        <div class="card premium-card mb-3">
+            <div class="card-header bg-transparent text-center" style="border-bottom: 1px solid #4a0000;">
+                <h5 class="mb-0 text-uppercase" style="letter-spacing: 1px;">Monthly Breakdown (<?= $selected_year ?>)</h5>
             </div>
             <div class="card-body p-0">
-                <table class="table table-dark table-striped mb-0 text-center align-middle">
+                <table class="table table-hover mb-0 text-center align-middle">
                     <thead>
                         <tr>
                             <th class="text-center" style="width: 33.33%">Month</th>
@@ -207,12 +329,12 @@ if($type){
         </div>
     </div>
     <div class="col-md-6">
-        <div class="card bg-dark text-white mb-3 border-secondary">
-            <div class="card-header border-secondary text-center">
-                <h5 class="mb-0">Yearly Overview</h5>
+        <div class="card premium-card mb-3">
+            <div class="card-header bg-transparent text-center" style="border-bottom: 1px solid #4a0000;">
+                <h5 class="mb-0 text-uppercase" style="letter-spacing: 1px;">Yearly Overview</h5>
             </div>
             <div class="card-body p-0">
-                <table class="table table-dark table-striped mb-0 text-center align-middle">
+                <table class="table table-hover mb-0 text-center align-middle">
                     <thead>
                         <tr>
                             <th class="text-center" style="width: 33.33%">Year</th>
@@ -261,13 +383,15 @@ body.light-mode.text-white { color: #212529 !important; }
 body.light-mode h1, body.light-mode h2, body.light-mode h3, body.light-mode h4, body.light-mode h5, body.light-mode h6 { color: #212529 !important; }
 body.light-mode .bg-dark { background-color: #f8f9fa !important; color: #212529 !important; }
 body.light-mode .border-secondary { border-color: #dee2e6 !important; }
-body.light-mode .table-dark { --bs-table-bg: transparent !important; --bs-table-striped-bg: transparent !important; background-color: transparent !important; color: #000000 !important; }
-body.light-mode .table-dark th { background-color: transparent !important; color: #000000 !important; border-color: #dee2e6 !important; }
-body.light-mode .table-dark td { background-color: transparent !important; color: #000000 !important; border-color: #dee2e6 !important; }
-body.light-mode .table-dark.table-striped > tbody > tr:nth-of-type(odd) > * { background-color: transparent !important; color: #000000 !important; --bs-table-accent-bg: transparent !important; }
-body.light-mode .table-dark, body.light-mode .table-dark th, body.light-mode .table-dark td, body.light-mode .table-dark tr { color: #000000 !important; background-color: transparent !important; }
+body.light-mode .table { color: #212529 !important; }
+body.light-mode .table tr, body.light-mode .table th, body.light-mode .table td { color: #212529 !important; }
+body.light-mode .table thead th { background-color: #f8f9fa !important; color: #212529 !important; border-bottom-color: #dee2e6 !important; }
+body.light-mode .table tbody td { border-bottom-color: #dee2e6 !important; }
+body.light-mode .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05) !important; color: #212529 !important; }
 body.light-mode .form-control, body.light-mode .form-select, body.light-mode .input-group-text, body.light-mode .detail-item { background-color: #fff !important; color: #212529 !important; border-color: #ced4da !important; }
 body.light-mode .card.bg-success, body.light-mode .card.bg-danger, body.light-mode .card.bg-secondary, body.light-mode .card.bg-success h5, body.light-mode .card.bg-danger h5, body.light-mode .card.bg-secondary h5, body.light-mode .card.bg-success .card-text, body.light-mode .card.bg-danger .card-text, body.light-mode .card.bg-secondary .card-text { color: #fff !important; }
+body.light-mode .stat-card { background: #fff !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.05) !important; }
+body.light-mode .icon-box { background: #f8f9fa !important; }
 body.light-mode .form-control:focus, body.light-mode .form-select:focus { border-color: #dc3545 !important; }
 body.light-mode .text-white { color: #212529 !important; }
 body.light-mode .text-light, body.light-mode .text-muted { color: #6c757d !important; }
