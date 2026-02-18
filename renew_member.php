@@ -65,12 +65,47 @@ if(isset($_POST['renew'])){
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
-        h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
         body {
             background: linear-gradient(135deg, #000000, #4a0000);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+        }
+        h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
+        .premium-card {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #4a0000;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(220, 53, 69, 0.15);
+            color: white;
+        }
+        .form-control, .form-select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        .form-control:focus, .form-select:focus {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: #dc3545;
+            color: white;
+            box-shadow: 0 0 0 0.25rem rgba(220, 53, 69, 0.25);
+        }
+        .form-label {
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+        .input-group-text {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: #dc3545;
+        }
+        /* Fix for date inputs in dark mode */
+        input[type="date"] {
+            color-scheme: dark;
+        }
+        option {
+            background-color: #222;
+            color: #000;
         }
         @media (min-width: 768px) {
             .container-xl {
@@ -82,11 +117,11 @@ if(isset($_POST['renew'])){
 </head>
 <body>
 <div class="container-xl my-3">
-    <div class="card shadow-sm" style="max-width: 500px; margin: auto;">
-        <div class="card-header bg-danger text-white">
-            <h4 class="mb-0">Renew Membership: <?= htmlspecialchars($member['full_name']) ?></h4>
+    <div class="card premium-card" style="max-width: 600px; margin: auto;">
+        <div class="card-header border-0 bg-transparent pt-4 px-4">
+            <h4 class="mb-0 text-danger fw-bold"><i class="bi bi-arrow-repeat"></i> Renew Membership: <?= htmlspecialchars($member['full_name']) ?></h4>
         </div>
-        <div class="card-body">
+        <div class="card-body p-3 p-md-4">
             <?php if(isset($error)): ?><div class='alert alert-danger'><?= $error ?></div><?php endif; ?>
             <form method="POST">
                 <div class="mb-3">
@@ -117,9 +152,9 @@ if(isset($_POST['renew'])){
                         <input type="number" name="amount" id="amount" class="form-control" readonly>
                     </div>
                 </div>
-                <div class="d-grid gap-2">
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                    <a href="view_member.php?id=<?= $id ?>" class="btn btn-dark px-4">Cancel</a>
                     <button name="renew" class="btn btn-danger">Confirm Renewal</button>
-                    <a href="view_member.php?id=<?= $id ?>" class="btn btn-dark">Cancel</a>
                 </div>
             </form>
         </div>
