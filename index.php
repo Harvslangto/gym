@@ -43,6 +43,12 @@ if($type && $search){
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #000000, #4a0000);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
         @media (max-width: 576px) {
             /* Hide table headers */
@@ -99,15 +105,15 @@ if($type && $search){
     </style>
 </head>
 
-<body class="text-white" style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
-<div class="container-xl mt-3 mt-md-4">
+<body class="text-white">
+<div class="container-xl my-3">
 
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <h2>Gym Members <span class="badge bg-secondary fs-5"><?= $result->num_rows ?></span></h2>
         <div class="d-flex gap-2 flex-wrap">
             <a href="add_member.php" class="btn btn-danger">+ Add Member</a>
             <a href="dashboard.php" class="btn btn-dark text-white">Dashboard</a>
-            <a href="logout.php" class="btn btn-outline-light" onclick="return confirm('Are you sure you want to logout?');">Logout</a>
+            <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
         </div>
     </div>
 
@@ -199,6 +205,24 @@ if($type && $search){
         </div>
     </div>
 </div>
+
+<!-- Logout Modal -->
+<div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-box-arrow-right text-danger" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">Logout</h4>
+                <p class="text-secondary mb-4">Are you sure you want to logout?</p>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-danger" onclick="window.location.href='logout.php'">Yes, Logout</button>
+                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
 body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }

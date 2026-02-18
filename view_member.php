@@ -26,6 +26,16 @@ if($result->num_rows == 0){
 
 $member = $result->fetch_assoc();
 
+$is_walk_in_member = strpos($member['membership_type'], 'Walk-in') !== false;
+$since_label = $is_walk_in_member ? "First Visit" : "Member Since";
+
+// Get Member Since (Earliest Payment Date)
+$stmt_since = $conn->prepare("SELECT MIN(payment_date) as member_since FROM payments WHERE member_id = ?");
+$stmt_since->bind_param("i", $id);
+$stmt_since->execute();
+$since_row = $stmt_since->get_result()->fetch_assoc();
+$member_since = $since_row['member_since'] ? date('M d, Y', strtotime($since_row['member_since'])) : date('M d, Y', strtotime($member['start_date']));
+
 // Calculate Age
 $age = "N/A";
 if(!empty($member['birth_date'])){
@@ -59,6 +69,12 @@ if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #000000, #4a0000);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
         .premium-card {
             background: rgba(20, 20, 20, 0.95);
@@ -113,10 +129,15 @@ if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
                 padding-bottom: 1.5rem;
             }
         }
+        @media (min-width: 768px) {
+            .container-xl {
+                margin: auto !important;
+            }
+        }
     </style>
 </head>
-<body style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
-<div class="container-xl mt-3 mt-md-5">
+<body>
+<div class="container-xl my-3">
     <div class="card premium-card" style="max-width: 900px; margin: auto;">
         <div class="card-header border-0 bg-transparent d-block d-md-flex justify-content-md-between align-items-md-center pt-4 px-4">
             <h4 class="mb-3 mb-md-0 text-danger fw-bold"><i class="bi bi-person-vcard"></i> Member Profile</h4>
@@ -139,6 +160,7 @@ if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
                         <?php endif; ?>
                     </div>
                     <h3 class="fw-bold mb-2"><?= htmlspecialchars($member['full_name']) ?></h3>
+                    <p class="text-secondary mb-3"><small><?= $since_label ?>: <?= $member_since ?></small></p>
                     <div class="mb-4">
                         <span class="badge bg-<?= $member['status'] == 'Active' ? 'success' : 'secondary' ?> px-4 py-2 rounded-pill">
                             <?= $member['status'] ?>

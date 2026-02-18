@@ -48,9 +48,9 @@ if(isset($_POST['renew'])){
         $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)");
         $stmt_pay->bind_param("ids", $id, $amount, $start);
         $stmt_pay->execute();
-        echo "<script>alert('Membership Renewed Successfully!'); window.location='view_member.php?id=$id';</script>";
+        $success = true;
     } else {
-        echo "<div class='alert alert-danger'>Error renewing member</div>";
+        $error = "Error renewing member.";
     }
 }
 ?>
@@ -66,16 +66,28 @@ if(isset($_POST['renew'])){
     <style>
         body { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #000000, #4a0000);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        @media (min-width: 768px) {
+            .container-xl {
+                margin: auto !important;
+            }
+        }
     </style>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
-<body style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
-<div class="container-xl mt-3 mt-md-5">
+<body>
+<div class="container-xl my-3">
     <div class="card shadow-sm" style="max-width: 500px; margin: auto;">
         <div class="card-header bg-danger text-white">
             <h4 class="mb-0">Renew Membership: <?= htmlspecialchars($member['full_name']) ?></h4>
         </div>
         <div class="card-body">
+            <?php if(isset($error)): ?><div class='alert alert-danger'><?= $error ?></div><?php endif; ?>
             <form method="POST">
                 <div class="mb-3">
                     <label class="form-label">Start Date</label>
@@ -113,7 +125,24 @@ if(isset($_POST['renew'])){
         </div>
     </div>
 </div>
+
+<?php if(isset($success) && $success): ?>
+<div class="modal fade" id="successModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">Success!</h4>
+                <p class="text-secondary mb-4">Membership has been renewed successfully.</p>
+                <button type="button" class="btn btn-danger w-100" onclick="window.location='view_member.php?id=<?= $id ?>'">Okay</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="js/main.js"></script>
 <script>
     flatpickr("#start_date", {
@@ -134,6 +163,10 @@ if(isset($_POST['renew'])){
 
     document.addEventListener("DOMContentLoaded", function() {
         calculateAmount();
+        <?php if(isset($success) && $success): ?>
+        var myModal = new bootstrap.Modal(document.getElementById("successModal"));
+        myModal.show();
+        <?php endif; ?>
     });
 </script>
 <style>

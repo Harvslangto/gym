@@ -92,6 +92,12 @@ if(isset($_POST['update'])){
     $update->bind_param("ssssssdssssi", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $status, $photo_path, $id);
     
     if($update->execute()){
+        // Update the corresponding payment record to reflect the corrected amount/date
+        $old_start = $member['start_date'];
+        $pay_update = $conn->prepare("UPDATE payments SET amount = ?, payment_date = ? WHERE member_id = ? AND payment_date = ?");
+        $pay_update->bind_param("dsis", $amount, $start, $id, $old_start);
+        $pay_update->execute();
+
         // Re-fetch updated member data so the form shows new info
         $stmt = $conn->prepare("SELECT * FROM members WHERE id = ?");
         $stmt->bind_param("i", $id);
@@ -117,6 +123,12 @@ if(isset($_POST['update'])){
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         body { font-family: 'Inter', sans-serif; }
+        body {
+            background: linear-gradient(135deg, #000000, #4a0000);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
         h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
         .premium-card {
             background: rgba(20, 20, 20, 0.95);
@@ -157,10 +169,15 @@ if(isset($_POST['update'])){
             background-color: #222;
             color: white;
         }
+        @media (min-width: 768px) {
+            .container-xl {
+                margin: auto !important;
+            }
+        }
     </style>
 </head>
-<body style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
-<div class="container-xl mt-3 mt-md-5">
+<body>
+<div class="container-xl my-3">
     <div class="card premium-card" style="max-width: 800px; margin: auto;">
         <div class="card-header border-0 bg-transparent pt-4 px-4">
             <h4 class="mb-0 text-danger fw-bold"><i class="bi bi-pencil-square"></i> Edit Member</h4>
@@ -427,11 +444,8 @@ if(isset($_POST['update'])){
 
     cropButton.addEventListener('click', function() {
         if(cropper) {
-            const canvas = cropper.getCroppedCanvas({
-                width: 400,
-                height: 400,
-            });
-            const base64data = canvas.toDataURL('image/jpeg');
+            const canvas = cropper.getCroppedCanvas();
+            const base64data = canvas.toDataURL('image/jpeg', 1.0);
             croppedImageInput.value = base64data;
             newPreviewImage.src = base64data;
             previewContainer.style.display = 'block';

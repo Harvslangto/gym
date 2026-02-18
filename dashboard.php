@@ -53,22 +53,22 @@ $selected_year = isset($_GET['year']) ? $_GET['year'] : $years[0];
 
 // Yearly Stats Query
 if($type){
-    $stmt_y = $conn->prepare("SELECT YEAR(p.payment_date) as year, COUNT(*) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? GROUP BY YEAR(p.payment_date) ORDER BY year DESC");
+    $stmt_y = $conn->prepare("SELECT YEAR(p.payment_date) as year, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? GROUP BY YEAR(p.payment_date) ORDER BY year DESC");
     $stmt_y->bind_param("s", $type);
     $stmt_y->execute();
     $yearly_stats = $stmt_y->get_result();
 } else {
-    $yearly_stats = $conn->query("SELECT YEAR(payment_date) as year, COUNT(*) as count, SUM(amount) as revenue FROM payments GROUP BY YEAR(payment_date) ORDER BY year DESC");
+    $yearly_stats = $conn->query("SELECT YEAR(payment_date) as year, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments GROUP BY YEAR(payment_date) ORDER BY year DESC");
 }
 
 // Monthly Stats Query
 if($type){
-    $stmt_m = $conn->prepare("SELECT MONTH(p.payment_date) as month, COUNT(*) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? GROUP BY MONTH(p.payment_date) ORDER BY month DESC");
+    $stmt_m = $conn->prepare("SELECT MONTH(p.payment_date) as month, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? GROUP BY MONTH(p.payment_date) ORDER BY month DESC");
     $stmt_m->bind_param("si", $type, $selected_year);
     $stmt_m->execute();
     $monthly_stats = $stmt_m->get_result();
 } else {
-    $stmt_m = $conn->prepare("SELECT MONTH(payment_date) as month, COUNT(*) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? GROUP BY MONTH(payment_date) ORDER BY month DESC");
+    $stmt_m = $conn->prepare("SELECT MONTH(payment_date) as month, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? GROUP BY MONTH(payment_date) ORDER BY month DESC");
     $stmt_m->bind_param("i", $selected_year);
     $stmt_m->execute();
     $monthly_stats = $stmt_m->get_result();
@@ -85,14 +85,20 @@ if($type){
 <style>
     body { font-family: 'Inter', sans-serif; }
     h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; }
+    body {
+        background: linear-gradient(135deg, #000000, #4a0000);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
 </style>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
-<body class="text-white" style="background: linear-gradient(135deg, #000000, #4a0000); min-height: 100vh;">
-<div class="container-xl mt-3 mt-md-4">
+<body class="text-white">
+<div class="container-xl my-3">
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <h2 class="mb-0">Gym Dashboard</h2>
-    <a href="logout.php" class="btn btn-outline-light btn-sm" onclick="return confirm('Are you sure you want to logout?');">Logout</a>
+    <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
 </div>
 
 <form method="GET" class="mt-4">
@@ -115,6 +121,9 @@ if($type){
         </div>
         <div class="col-auto">
             <button class="btn btn-dark">Filter</button>
+        </div>
+        <div class="col-auto ms-auto">
+            <a href="index.php" class="btn btn-outline-light">Go to Member List</a>
         </div>
     </div>
 </form>
@@ -163,33 +172,6 @@ if($type){
     <div class="col-md-6">
         <div class="card bg-dark text-white mb-3 border-secondary">
             <div class="card-header border-secondary text-center">
-                <h5 class="mb-0">Yearly Overview</h5>
-            </div>
-            <div class="card-body p-0">
-                <table class="table table-dark table-striped mb-0 text-center align-middle">
-                    <thead>
-                        <tr>
-                            <th class="text-center" style="width: 33.33%">Year</th>
-                            <th class="text-center" style="width: 33.33%">Members</th>
-                            <th class="text-center" style="width: 33.33%">Revenue</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php while($row = $yearly_stats->fetch_assoc()): ?>
-                        <tr>
-                            <td class="text-center"><?= $row['year'] ?></td>
-                            <td class="text-center"><?= $row['count'] ?></td>
-                            <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
-                        </tr>
-                        <?php endwhile; ?>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card bg-dark text-white mb-3 border-secondary">
-            <div class="card-header border-secondary text-center">
                 <h5 class="mb-0">Monthly Breakdown (<?= $selected_year ?>)</h5>
             </div>
             <div class="card-body p-0">
@@ -224,10 +206,54 @@ if($type){
             </div>
         </div>
     </div>
+    <div class="col-md-6">
+        <div class="card bg-dark text-white mb-3 border-secondary">
+            <div class="card-header border-secondary text-center">
+                <h5 class="mb-0">Yearly Overview</h5>
+            </div>
+            <div class="card-body p-0">
+                <table class="table table-dark table-striped mb-0 text-center align-middle">
+                    <thead>
+                        <tr>
+                            <th class="text-center" style="width: 33.33%">Year</th>
+                            <th class="text-center" style="width: 33.33%">Members</th>
+                            <th class="text-center" style="width: 33.33%">Revenue</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php while($row = $yearly_stats->fetch_assoc()): ?>
+                        <tr>
+                            <td class="text-center"><?= $row['year'] ?></td>
+                            <td class="text-center"><?= $row['count'] ?></td>
+                            <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                        </tr>
+                        <?php endwhile; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
-<a href="index.php" class="btn btn-outline-light mt-3">Go to Member List</a>
 </div>
+
+<!-- Logout Modal -->
+<div class="modal fade" id="logoutModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-box-arrow-right text-danger" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">Logout</h4>
+                <p class="text-secondary mb-4">Are you sure you want to logout?</p>
+                <div class="d-grid gap-2">
+                    <button type="button" class="btn btn-danger" onclick="window.location.href='logout.php'">Yes, Logout</button>
+                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
 body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }
