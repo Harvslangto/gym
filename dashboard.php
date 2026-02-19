@@ -10,33 +10,23 @@ $conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() A
 
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 
-if($type){
-    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM members WHERE membership_type = ?");
-    $stmt->bind_param("s", $type);
-    $stmt->execute();
-    $total = $stmt->get_result()->fetch_assoc()['count'];
+// Consolidate member counts into a single query
+$counts_sql = "SELECT 
+    COUNT(*) as total, 
+    SUM(CASE WHEN status = 'Active' THEN 1 ELSE 0 END) as active, 
+    SUM(CASE WHEN status = 'Expired' THEN 1 ELSE 0 END) as expired 
+    FROM members";
+$stmt_counts = $conn->prepare($counts_sql);
+$stmt_counts->execute();
+$counts = $stmt_counts->get_result()->fetch_assoc();
+$total = $counts['total'] ?? 0;
+$active = $counts['active'] ?? 0;
+$expired = $counts['expired'] ?? 0;
 
-    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM members WHERE status='Active' AND membership_type = ?");
-    $stmt->bind_param("s", $type);
-    $stmt->execute();
-    $active = $stmt->get_result()->fetch_assoc()['count'];
-
-    $stmt = $conn->prepare("SELECT COUNT(*) as count FROM members WHERE status='Expired' AND membership_type = ?");
-    $stmt->bind_param("s", $type);
-    $stmt->execute();
-    $expired = $stmt->get_result()->fetch_assoc()['count'];
-
-    $stmt = $conn->prepare("SELECT SUM(p.amount) as sum FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ?");
-    $stmt->bind_param("s", $type);
-    $stmt->execute();
-    $total_income = $stmt->get_result()->fetch_assoc()['sum'];
-} else {
-    // Count members
-    $total = $conn->query("SELECT COUNT(*) as count FROM members")->fetch_assoc()['count'];
-    $active = $conn->query("SELECT COUNT(*) as count FROM members WHERE status='Active'")->fetch_assoc()['count'];
-    $expired = $conn->query("SELECT COUNT(*) as count FROM members WHERE status='Expired'")->fetch_assoc()['count'];
-    $total_income = $conn->query("SELECT SUM(amount) as sum FROM payments")->fetch_assoc()['sum'];
-}
+$income_sql = "SELECT SUM(amount) as sum FROM payments";
+$stmt_income = $conn->prepare($income_sql);
+$stmt_income->execute();
+$total_income = $stmt_income->get_result()->fetch_assoc()['sum'];
 
 // Get Years for filter
 $years_q = $conn->query("SELECT DISTINCT YEAR(payment_date) as year FROM payments ORDER BY year DESC");
@@ -51,53 +41,62 @@ if($years_q->num_rows > 0){
 
 $selected_year = isset($_GET['year']) ? $_GET['year'] : $years[0];
 $selected_month = isset($_GET['month']) ? $_GET['month'] : date('n');
-$selected_day = isset($_GET['day']) ? $_GET['day'] : '';
 
-// Yearly Stats Query
-if($type){
-    $stmt_y = $conn->prepare("SELECT YEAR(p.payment_date) as year, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? GROUP BY YEAR(p.payment_date) ORDER BY year DESC");
-    $stmt_y->bind_param("s", $type);
-    $stmt_y->execute();
-    $yearly_stats = $stmt_y->get_result();
+// If any filter is set (i.e. the URL has query parameters), use the 'day' from the filter.
+// An empty 'day' means 'All Days'.
+// If no filters are set (initial page load), default to showing only today's data.
+if (empty($_GET)) {
+    $selected_day = date('j');
 } else {
-    $yearly_stats = $conn->query("SELECT YEAR(payment_date) as year, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments GROUP BY YEAR(payment_date) ORDER BY year DESC");
+    $selected_day = isset($_GET['day']) ? $_GET['day'] : '';
 }
 
-// Monthly Stats Query
-if($type){
-    $stmt_m = $conn->prepare("SELECT MONTH(p.payment_date) as month, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? GROUP BY MONTH(p.payment_date) ORDER BY month DESC");
-    $stmt_m->bind_param("si", $type, $selected_year);
-    $stmt_m->execute();
-    $monthly_stats = $stmt_m->get_result();
-} else {
-    $stmt_m = $conn->prepare("SELECT MONTH(payment_date) as month, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? GROUP BY MONTH(payment_date) ORDER BY month DESC");
-    $stmt_m->bind_param("i", $selected_year);
-    $stmt_m->execute();
-    $monthly_stats = $stmt_m->get_result();
+$daily_breakdown_title_date = date('F Y', mktime(0, 0, 0, $selected_month, 1, $selected_year));
+if (empty($_GET) && $selected_day) { // On initial load, the title should reflect 'Today'.
+    $daily_breakdown_title_date = 'Today, ' . date('F j, Y'); 
+} elseif ($selected_day) { // If a specific day is filtered.
+    $daily_breakdown_title_date = date('F j, Y', mktime(0, 0, 0, $selected_month, $selected_day, $selected_year));
 }
 
-// Daily Stats Query
-if($type){
-    if($selected_day){
-        $stmt_d = $conn->prepare("SELECT DATE(p.payment_date) as date, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? AND MONTH(p.payment_date) = ? AND DAY(p.payment_date) = ? GROUP BY DATE(p.payment_date) ORDER BY date DESC");
-        $stmt_d->bind_param("siii", $type, $selected_year, $selected_month, $selected_day);
-    } else {
-        $stmt_d = $conn->prepare("SELECT DATE(p.payment_date) as date, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p JOIN members m ON p.member_id = m.id WHERE m.membership_type = ? AND YEAR(p.payment_date) = ? AND MONTH(p.payment_date) = ? GROUP BY DATE(p.payment_date) ORDER BY date DESC");
-        $stmt_d->bind_param("sii", $type, $selected_year, $selected_month);
-    }
-    $stmt_d->execute();
-    $daily_stats = $stmt_d->get_result();
-} else {
-    if($selected_day){
-        $stmt_d = $conn->prepare("SELECT DATE(payment_date) as date, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? AND MONTH(payment_date) = ? AND DAY(payment_date) = ? GROUP BY DATE(payment_date) ORDER BY date DESC");
-        $stmt_d->bind_param("iii", $selected_year, $selected_month, $selected_day);
-    } else {
-        $stmt_d = $conn->prepare("SELECT DATE(payment_date) as date, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? AND MONTH(payment_date) = ? GROUP BY DATE(payment_date) ORDER BY date DESC");
-        $stmt_d->bind_param("ii", $selected_year, $selected_month);
-    }
-    $stmt_d->execute();
-    $daily_stats = $stmt_d->get_result();
+// Yearly Stats (unfiltered by type)
+$yearly_sql = "SELECT YEAR(payment_date) as year, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments GROUP BY YEAR(payment_date) ORDER BY year DESC";
+$stmt_y = $conn->prepare($yearly_sql);
+$stmt_y->execute();
+$yearly_stats = $stmt_y->get_result();
+
+// Monthly Stats (unfiltered by type, but filtered by selected year)
+$monthly_sql = "SELECT MONTH(payment_date) as month, COUNT(DISTINCT member_id) as count, SUM(amount) as revenue FROM payments WHERE YEAR(payment_date) = ? GROUP BY MONTH(payment_date) ORDER BY month DESC";
+$stmt_m = $conn->prepare($monthly_sql);
+$stmt_m->bind_param("i", $selected_year);
+$stmt_m->execute();
+$monthly_stats = $stmt_m->get_result();
+
+// Daily Stats (filtered by type, year, month, and optionally day)
+$params = [];
+$types = '';
+$join_sql = $type ? "JOIN members m ON p.member_id = m.id" : "";
+$where_sql = $type ? "WHERE m.membership_type = ?" : "WHERE 1";
+if($type) { $params[] = $type; $types .= 's'; }
+
+$daily_sql = "SELECT DATE(p.payment_date) as date, COUNT(DISTINCT p.member_id) as count, SUM(p.amount) as revenue FROM payments p $join_sql $where_sql AND YEAR(p.payment_date) = ? AND MONTH(p.payment_date) = ?";
+$daily_params = $params;
+$daily_params[] = $selected_year;
+$daily_params[] = $selected_month;
+$daily_types = $types . 'ii';
+
+if($selected_day){
+    $daily_sql .= " AND DAY(p.payment_date) = ?";
+    $daily_params[] = $selected_day;
+    $daily_types .= 'i';
 }
+$daily_sql .= " GROUP BY DATE(p.payment_date) ORDER BY date DESC";
+$stmt_d = $conn->prepare($daily_sql);
+$stmt_d->bind_param($daily_types, ...$daily_params);
+$stmt_d->execute();
+$daily_stats = $stmt_d->get_result();
+
+// Fetch membership types for filter dropdown
+$types_result_dash = $conn->query("SELECT type_name FROM membership_types ORDER BY type_name");
 ?>
 
 <!DOCTYPE html>
@@ -108,6 +107,11 @@ if($type){
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Russo+One&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
 <style>
+    @media (max-width: 576px) {
+        h2 { font-size: 1.5rem; }
+        .stat-card .card-body { padding: 1rem !important; }
+        .stat-card h2 { font-size: 1.5rem; }
+    }
     body { font-family: 'Inter', sans-serif; }
     h1, h2, h3, h4, h5, h6 { font-family: 'Russo One', sans-serif; letter-spacing: 1px; }
     body {
@@ -225,6 +229,8 @@ if($type){
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <h2 class="mb-0 text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Gym Dashboard</h2>
     <div class="d-flex gap-2">
+        <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear"></i> Settings</a>
+        <a href="activity_logs.php" class="btn btn-outline-light btn-sm"><i class="bi bi-clock-history"></i> Logs</a>
         <a href="index.php" class="btn btn-outline-light btn-sm">Go to Member List</a>
         <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
     </div>
@@ -296,45 +302,49 @@ if($type){
     <div class="col-12">
         <div class="card premium-card mb-3">
             <div class="card-header bg-transparent d-flex justify-content-center justify-content-md-between align-items-center flex-wrap gap-3" style="border-bottom: 1px solid #4a0000;">
-                <h5 class="mb-0 text-uppercase text-center" style="letter-spacing: 1px;">Daily Breakdown (<?= date('F', mktime(0, 0, 0, $selected_month, 10)) ?> <?= $selected_year ?>)</h5>
-                <form method="GET" class="d-flex align-items-center justify-content-center gap-2 flex-wrap">
-                    <select name="type" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
-                        <option value="">All Types</option>
-                        <option value="Regular" <?= $type == 'Regular' ? 'selected' : '' ?>>Regular</option>
-                        <option value="Student" <?= $type == 'Student' ? 'selected' : '' ?>>Student</option>
-                        <option value="Walk-in Regular" <?= $type == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular</option>
-                        <option value="Walk-in Student" <?= $type == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student</option>
-                    </select>
-                    <select name="year" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
-                        <?php foreach($years as $y): ?>
-                            <option value="<?= $y ?>" <?= $selected_year == $y ? 'selected' : '' ?>><?= $y ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <select name="month" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
-                        <?php 
-                        for($m=1; $m<=12; $m++){
-                            $monthName = date('F', mktime(0, 0, 0, $m, 10));
-                            $selected = ($selected_month == $m) ? 'selected' : '';
-                            echo "<option value='$m' $selected>$monthName</option>";
-                        }
-                        ?>
-                    </select>
-                    <select name="day" class="form-select form-select-sm" style="width: auto; background: #fff; color: #000; border: 1px solid #4a0000;">
-                        <option value="">All Days</option>
-                        <?php 
-                        $current_d = date('j');
-                        $current_m = date('n');
-                        $current_y = date('Y');
-
-                        for($d=31; $d>=1; $d--){
-                            $sel = ($selected_day == $d) ? 'selected' : '';
-                            $label = ($selected_month == $current_m && $selected_year == $current_y && $d == $current_d) ? "Today" : $d;
-                            echo "<option value='$d' $sel>$label</option>";
-                        }
-                        ?>
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-danger">Filter</button>
-                    <a href="dashboard.php" class="btn btn-sm btn-outline-light">Reset</a>
+                <h5 class="mb-0 text-uppercase text-center w-100" style="letter-spacing: 1px;">Daily Breakdown (<?= htmlspecialchars($daily_breakdown_title_date) ?>)</h5>
+                <form method="GET" class="w-100">
+                    <div class="row g-2 justify-content-center align-items-center">
+                        <div class="col-12 col-sm-6 col-md-auto">
+                            <select name="type" class="form-select" style="background: #fff; color: #000; border: 1px solid #4a0000; text-align: center;">
+                                <option value="" disabled hidden <?= !isset($_GET['type']) ? 'selected' : '' ?>>Membership Type</option>
+                                <option value="" <?= (isset($_GET['type']) && $type === '') ? 'selected' : '' ?>>All Types</option>
+                                <?php if(isset($types_result_dash) && $types_result_dash->num_rows > 0) { while($t = $types_result_dash->fetch_assoc()): ?>
+                                    <option value="<?= htmlspecialchars($t['type_name']) ?>" <?= $type == $t['type_name'] ? 'selected' : '' ?>><?= htmlspecialchars($t['type_name']) ?></option>
+                                <?php endwhile; } ?>
+                            </select>
+                        </div>
+                        <div class="col-6 col-sm-3 col-md-auto">
+                            <div class="input-group">
+                                <span class="input-group-text" style="background: #fff; color: #000; border: 1px solid #4a0000; border-right: 0;">Year:</span>
+                                <select name="year" class="form-select" style="background: #fff; color: #000; border: 1px solid #4a0000; text-align: center;">
+                                    <?php foreach($years as $y): ?>
+                                        <option value="<?= $y ?>" <?= $selected_year == $y ? 'selected' : '' ?>><?= htmlspecialchars($y) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-6 col-sm-3 col-md-auto">
+                            <div class="input-group">
+                                <span class="input-group-text" style="background: #fff; color: #000; border: 1px solid #4a0000; border-right: 0;">Month:</span>
+                                <select name="month" class="form-select" style="background: #fff; color: #000; border: 1px solid #4a0000; text-align: center;">
+                                    <?php for($m=1; $m<=12; $m++){ $monthName = date('F', mktime(0, 0, 0, $m, 10)); $selected = ($selected_month == $m) ? 'selected' : ''; echo "<option value='$m' $selected>$monthName</option>"; } ?>
+                                </select> 
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-auto">
+                            <select name="day" class="form-select" style="background: #fff; color: #000; border: 1px solid #4a0000; text-align: center;">
+                                <option value="">All Days</option>
+                                <?php $current_d = date('j'); $current_m = date('n'); $current_y = date('Y'); $days_in_month = cal_days_in_month(CAL_GREGORIAN, $selected_month, $selected_year); for($d = $days_in_month; $d >= 1; $d--){ $sel = ($selected_day == $d) ? 'selected' : ''; $label = ($selected_month == $current_m && $selected_year == $current_y && $d == $current_d) ? "Today" : $d; echo "<option value='$d' $sel>$label</option>"; } ?>
+                            </select>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-auto">
+                            <div class="d-grid d-sm-flex gap-2">
+                                <button type="submit" class="btn btn-danger">Filter</button>
+                                <a href="dashboard.php" class="btn btn-outline-light">Reset</a>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
             <div class="card-body p-0">
@@ -352,10 +362,10 @@ if($type){
                             if($daily_stats->num_rows > 0):
                                 while($row = $daily_stats->fetch_assoc()): 
                             ?>
-                            <tr>
-                                <td class="text-center"><?= date('M d, Y', strtotime($row['date'])) ?></td>
-                                <td class="text-center"><?= $row['count'] ?></td>
-                                <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                            <tr style="cursor: pointer;" onclick="window.location='view_daily_members.php?date=<?= $row['date'] ?>'">
+                                <td class="text-center"><?= htmlspecialchars(date('M d, Y', strtotime($row['date']))) ?></td>
+                                <td class="text-center"><span class="badge bg-danger rounded-pill"><?= htmlspecialchars($row['count']) ?></span></td>
+                                <td class="text-center">₱<?= htmlspecialchars(number_format($row['revenue'], 2)) ?></td>
                             </tr>
                             <?php 
                                 endwhile; 
@@ -375,7 +385,7 @@ if($type){
     <div class="col-md-6">
         <div class="card premium-card mb-3">
             <div class="card-header bg-transparent text-center" style="border-bottom: 1px solid #4a0000;">
-                <h5 class="mb-0 text-uppercase" style="letter-spacing: 1px;">Monthly Breakdown (<?= $selected_year ?>)</h5>
+                <h5 class="mb-0 text-uppercase" style="letter-spacing: 1px;">Monthly Breakdown (<?= htmlspecialchars($selected_year) ?>)</h5>
             </div>
             <div class="card-body p-0">
                 <table class="table table-hover mb-0 text-center align-middle">
@@ -394,9 +404,9 @@ if($type){
                                 $monthName = $dateObj->format('F');
                         ?>
                         <tr>
-                            <td class="text-center"><?= $monthName ?></td>
-                            <td class="text-center"><?= $row['count'] ?></td>
-                            <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                            <td class="text-center"><?= htmlspecialchars($monthName) ?></td>
+                            <td class="text-center"><?= htmlspecialchars($row['count']) ?></td>
+                            <td class="text-center">₱<?= htmlspecialchars(number_format($row['revenue'], 2)) ?></td>
                         </tr>
                         <?php 
                             endwhile; 
@@ -426,9 +436,9 @@ if($type){
                     <tbody>
                         <?php while($row = $yearly_stats->fetch_assoc()): ?>
                         <tr>
-                            <td class="text-center"><?= $row['year'] ?></td>
-                            <td class="text-center"><?= $row['count'] ?></td>
-                            <td class="text-center">₱<?= number_format($row['revenue'], 2) ?></td>
+                            <td class="text-center"><?= htmlspecialchars($row['year']) ?></td>
+                            <td class="text-center"><?= htmlspecialchars($row['count']) ?></td>
+                            <td class="text-center">₱<?= htmlspecialchars(number_format($row['revenue'], 2)) ?></td>
                         </tr>
                         <?php endwhile; ?>
                     </tbody>
@@ -492,6 +502,49 @@ themeBtn.innerHTML = '<i class="bi bi-sun-fill"></i>';
 themeBtn.onclick = () => { document.body.classList.toggle('light-mode'); const isLight = document.body.classList.contains('light-mode'); localStorage.setItem('theme', isLight ? 'light' : 'dark'); themeBtn.innerHTML = isLight ? '<i class="bi bi-moon-fill"></i>' : '<i class="bi bi-sun-fill"></i>'; themeBtn.className = isLight ? 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border' : 'btn btn-dark position-fixed bottom-0 end-0 m-3 rounded-circle shadow'; };
 document.body.appendChild(themeBtn);
 if (localStorage.getItem('theme') === 'light') { document.body.classList.add('light-mode'); themeBtn.innerHTML = '<i class="bi bi-moon-fill"></i>'; themeBtn.className = 'btn btn-light position-fixed bottom-0 end-0 m-3 rounded-circle shadow border'; }
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const yearSelect = document.querySelector('select[name="year"]');
+    const monthSelect = document.querySelector('select[name="month"]');
+    const daySelect = document.querySelector('select[name="day"]');
+
+    function updateDays() {
+        const year = parseInt(yearSelect.value);
+        const month = parseInt(monthSelect.value);
+        
+        // In JS, month is 0-indexed. The day '0' of the next month gives the last day of the current month.
+        const daysInMonth = new Date(year, month, 0).getDate();
+
+        const currentDayValue = daySelect.value;
+        
+        daySelect.innerHTML = '<option value="">All Days</option>';
+
+        const today = new Date();
+        const currentYear = today.getFullYear();
+        const currentMonth = today.getMonth() + 1; // JS month is 0-indexed, PHP is 1-indexed
+        const currentDay = today.getDate();
+
+        for (let d = daysInMonth; d >= 1; d--) {
+            const option = document.createElement('option');
+            option.value = d;
+
+            if (year === currentYear && month === currentMonth && d === currentDay) {
+                option.textContent = 'Today';
+            } else {
+                option.textContent = d;
+            }
+            daySelect.appendChild(option);
+        }
+
+        if (currentDayValue && currentDayValue <= daysInMonth) {
+            daySelect.value = currentDayValue;
+        }
+    }
+
+    yearSelect.addEventListener('change', updateDays);
+    monthSelect.addEventListener('change', updateDays);
+});
 </script>
 </body>
 </html>

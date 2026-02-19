@@ -23,7 +23,13 @@ if(!$member){
     exit;
 }
 
-$is_walk_in = strpos($member['membership_type'], 'Walk-in') !== false;
+// Check if current member type is walk-in based on DB
+$stmt_check = $conn->prepare("SELECT duration_unit FROM membership_types WHERE type_name = ?");
+$stmt_check->bind_param("s", $member['membership_type']);
+$stmt_check->execute();
+$type_info = $stmt_check->get_result()->fetch_assoc();
+$is_walk_in = ($type_info && $type_info['duration_unit'] == 'Day');
+
 $months_duration = get_membership_duration_in_months_or_days($member['start_date'], $member['end_date'], $is_walk_in);
 if($months_duration < 1) $months_duration = 1;
 
@@ -39,7 +45,6 @@ if(isset($_POST['update'])){
     $membership_type = $_POST['membership_type'];
     $amount = $_POST['amount'];
     $start = $_POST['start']; 
-    $months = (int)$_POST['months'];
     $status = $_POST['status'];
 
     // Validate dates to prevent 0000-00-00 errors
@@ -47,14 +52,20 @@ if(isset($_POST['update'])){
         $start = $member['start_date'];
     }
 
-    $is_walk_in_post = strpos($membership_type, 'Walk-in') !== false;
+    // Check type again for POST data
+    $stmt_check->bind_param("s", $membership_type);
+    $stmt_check->execute();
+    $type_info_post = $stmt_check->get_result()->fetch_assoc();
+    $is_walk_in_post = ($type_info_post && $type_info_post['duration_unit'] == 'Day');
+
+    // For walk-ins, duration is always 1 day, regardless of input
+    $months = $is_walk_in_post ? 1 : (int)$_POST['months'];
     
     $start_dt = new DateTime($start);
     if($is_walk_in_post){
         $start_dt->modify('+' . ($months - 1) . ' days');
     } else {
-        $days = $months * 30;
-        $start_dt->modify('+' . ($days - 1) . ' days');
+        $start_dt->modify('+' . $months . ' months')->modify('-1 day');
     }
     $end = $start_dt->format('Y-m-d');
 
@@ -88,27 +99,37 @@ if(isset($_POST['update'])){
         }
     }
 
-    $update = $conn->prepare("UPDATE members SET full_name=?, contact_number=?, address=?, birth_date=?, gender=?, membership_type=?, amount=?, start_date=?, end_date=?, status=?, photo=? WHERE id=?");
-    $update->bind_param("ssssssdssssi", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $status, $photo_path, $id);
-    
-    if($update->execute()){
-        // Update the corresponding payment record to reflect the corrected amount/date
+    $conn->begin_transaction();
+    try {
+        $update = $conn->prepare("UPDATE members SET full_name=?, contact_number=?, address=?, birth_date=?, gender=?, membership_type=?, amount=?, start_date=?, end_date=?, status=?, photo=? WHERE id=?");
+        $update->bind_param("ssssssdssssi", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $status, $photo_path, $id);
+        if (!$update->execute()) throw new Exception($conn->error);
+
+        // Update the corresponding payment record to reflect the corrected amount/date.
+        // This assumes the original payment is tied to the original start date.
         $old_start = $member['start_date'];
-        $pay_update = $conn->prepare("UPDATE payments SET amount = ?, payment_date = ? WHERE member_id = ? AND payment_date = ?");
+        $pay_update = $conn->prepare("UPDATE payments SET amount = ?, payment_date = ? WHERE member_id = ? AND payment_date = ? LIMIT 1");
         $pay_update->bind_param("dsis", $amount, $start, $id, $old_start);
-        $pay_update->execute();
+        $pay_update->execute(); // We don't throw an error here, as the payment might not exist to be updated.
+
+        $conn->commit();
+        logActivity($conn, $_SESSION['admin_id'], 'Edit Member', "Updated member: $name");
 
         // Re-fetch updated member data so the form shows new info
-        $stmt = $conn->prepare("SELECT * FROM members WHERE id = ?");
-        $stmt->bind_param("i", $id);
-        $stmt->execute();
-        $member = $stmt->get_result()->fetch_assoc();
+        $stmt_refetch = $conn->prepare("SELECT * FROM members WHERE id = ?");
+        $stmt_refetch->bind_param("i", $id);
+        $stmt_refetch->execute();
+        $member = $stmt_refetch->get_result()->fetch_assoc();
         $months_duration = (int)$_POST['months'];
         $success = true;
-    } else {
-        echo "<div class='alert alert-danger'>Error updating member</div>";
+    } catch (Exception $e) {
+        $conn->rollback();
+        echo "<div class='alert alert-danger'>Error updating member: " . $e->getMessage() . "</div>";
     }
 }
+
+// Fetch types for dropdown
+$types_result = $conn->query("SELECT * FROM membership_types");
 ?>
 <!DOCTYPE html>
 <html>
@@ -174,6 +195,22 @@ if(isset($_POST['update'])){
                 margin: auto !important;
             }
         }
+        #photo_upload_area {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        #photo_upload_area:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-color: #dc3545;
+        }
+        #preview_image {
+            width: 150px; height: 150px; object-fit: cover;
+            border-radius: 50%; border: 3px solid #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -221,10 +258,15 @@ if(isset($_POST['update'])){
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Membership Type</label>
                         <select name="membership_type" id="membership_type" class="form-select" onchange="calculateAmount(true)">
-                            <option value="Regular" data-price="999" <?= ($member['membership_type'] ?? '') == 'Regular' ? 'selected' : '' ?>>Regular (₱999/mo)</option>
-                            <option value="Student" data-price="799" <?= ($member['membership_type'] ?? '') == 'Student' ? 'selected' : '' ?>>Student (₱799/mo)</option>
-                            <option value="Walk-in Regular" data-price="69" <?= ($member['membership_type'] ?? '') == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular (₱69/day)</option>
-                            <option value="Walk-in Student" data-price="59" <?= ($member['membership_type'] ?? '') == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student (₱59/day)</option>
+                            <?php while($t = $types_result->fetch_assoc()): 
+                                $is_wi = ($t['duration_unit'] == 'Day') ? '1' : '0';
+                                $unit_lbl = ($t['duration_unit'] == 'Day') ? '/day' : '/mo';
+                                $selected = ($member['membership_type'] == $t['type_name']) ? 'selected' : '';
+                            ?>
+                                <option value="<?= $t['type_name'] ?>" data-price="<?= $t['price'] ?>" data-is-walk-in="<?= $is_wi ?>" <?= $selected ?>>
+                                    <?= $t['type_name'] ?> (₱<?= $t['price'] . $unit_lbl ?>)
+                                </option>
+                            <?php endwhile; ?>
                         </select>
                     </div>
                     <div class="col-md-6 mb-3">
@@ -262,35 +304,25 @@ if(isset($_POST['update'])){
                     <label class="form-label">Photo</label>
                     <input type="file" name="photo" id="photo_input" class="d-none" accept="image/*">
                     <input type="hidden" name="cropped_image" id="cropped_image">
-                    
-                    <div class="mt-2" id="current_photo_container">
-                        <?php if(!empty($member['photo'])): ?>
-                            <div class="d-flex align-items-center">
-                                <img src="<?= $member['photo'] ?>" id="preview_image" class="rounded border border-secondary" style="width: 80px; height: 80px; object-fit: cover;">
-                                <button type="button" class="btn btn-outline-light btn-sm ms-3" onclick="document.getElementById('photo_input').click()">
-                                    <i class="bi bi-pencil"></i> Edit
-                                </button>
+
+                    <div id="photo_upload_area" onclick="document.getElementById('photo_input').click()">
+                        <div id="preview_container" class="text-center">
+                            <?php if(!empty($member['photo']) && file_exists($member['photo'])): ?>
+                                <img id="preview_image" src="<?= $member['photo'] . '?t=' . time() ?>">
+                                <p class="text-secondary mb-0 mt-2"><small>Click image to change</small></p>
+                            <?php else: ?>
+                                <div id="upload_placeholder">
+                                    <i class="bi bi-camera-fill" style="font-size: 2rem; color: #aaa;"></i>
+                                    <p class="text-secondary mb-0 mt-2">Click to Upload Photo</p>
+                                </div>
+                                <img id="preview_image" src="" style="display: none;">
                             </div>
-                        <?php else: ?>
-                            <button type="button" class="btn btn-outline-light" onclick="document.getElementById('photo_input').click()">
-                                <i class="bi bi-upload"></i> Upload Photo
-                            </button>
                         <?php endif; ?>
                     </div>
-
-                    <div id="preview_container" class="mt-2" style="display:none;">
-                        <small class="text-secondary">New Photo:</small><br>
-                        <div class="d-flex align-items-center">
-                            <img id="new_preview_image" src="" class="rounded border border-secondary" style="width: 80px; height: 80px; object-fit: cover;">
-                            <button type="button" class="btn btn-outline-light btn-sm ms-3" onclick="document.getElementById('photo_input').click()">
-                                <i class="bi bi-pencil"></i> Change
-                            </button>
-                        </div>
-                    </div>
                 </div>
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                    <a href="view_member.php?id=<?= $id ?>" class="btn btn-dark px-4">Cancel</a>
-                    <button name="update" class="btn btn-danger">Update Member</button>
+                <div class="row g-2 mt-4 justify-content-end">
+                    <div class="col-12 col-md-auto"><a href="view_member.php?id=<?= $id ?>" class="btn btn-dark w-100">Cancel</a></div>
+                    <div class="col-12 col-md-auto"><button name="update" class="btn btn-danger w-100">Update Member</button></div>
                 </div>
             </form>
         </div>
@@ -406,10 +438,9 @@ if(isset($_POST['update'])){
     const cropModal = new bootstrap.Modal(cropModalElement);
     const imageToCrop = document.getElementById('image_to_crop');
     const cropButton = document.getElementById('crop_button');
-    const previewContainer = document.getElementById('preview_container');
-    const newPreviewImage = document.getElementById('new_preview_image');
+    const previewImage = document.getElementById('preview_image');
     const croppedImageInput = document.getElementById('cropped_image');
-    const currentPhotoContainer = document.getElementById('current_photo_container');
+    const uploadPlaceholder = document.getElementById('upload_placeholder');
 
     photoInput.addEventListener('change', function(e) {
         const files = e.target.files;
@@ -447,9 +478,9 @@ if(isset($_POST['update'])){
             const canvas = cropper.getCroppedCanvas();
             const base64data = canvas.toDataURL('image/jpeg', 1.0);
             croppedImageInput.value = base64data;
-            newPreviewImage.src = base64data;
-            previewContainer.style.display = 'block';
-            if(currentPhotoContainer) currentPhotoContainer.style.display = 'none';
+            previewImage.src = base64data;
+            previewImage.style.display = 'inline-block';
+            if(uploadPlaceholder) uploadPlaceholder.style.display = 'none';
             cropModal.hide();
         }
     });

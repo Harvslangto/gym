@@ -26,6 +26,15 @@ if($result->num_rows == 0){
 
 $member = $result->fetch_assoc();
 
+$back_url = 'index.php'; // Default back URL
+if (isset($_GET['return_to']) && !empty($_GET['return_to'])) {
+    // Basic validation to prevent open redirect vulnerabilities
+    $decoded_url = urldecode($_GET['return_to']);
+    if (parse_url($decoded_url, PHP_URL_HOST) === null) {
+        $back_url = $decoded_url;
+    }
+}
+
 $is_walk_in_member = strpos($member['membership_type'], 'Walk-in') !== false;
 $since_label = $is_walk_in_member ? "First Visit" : "Member Since";
 
@@ -45,18 +54,13 @@ if(!empty($member['birth_date'])){
 }
 
 // Calculate Remaining Days
-$start_date = new DateTime($member['start_date']);
 $end_date = new DateTime($member['end_date']);
 $now = new DateTime('today');
 
-if($start_date > $now){
-    $diff = $start_date->diff($end_date);
-} else {
-    $diff = $now->diff($end_date);
-}
-
+// The difference should always be calculated from today to the end date.
+$diff = $now->diff($end_date);
 $remaining_days = (int)$diff->format('%r%a');
-if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
+if($member['status'] == 'Active' && $remaining_days >= 0) $remaining_days++; // Add 1 to be inclusive of the end day
 ?>
 
 <!DOCTYPE html>
@@ -144,7 +148,7 @@ if($remaining_days >= 0) $remaining_days = $remaining_days + 1;
             <div class="d-flex gap-2 flex-wrap justify-content-between justify-content-md-end">
                 <a href="renew_member.php?id=<?= $member['id'] ?>" class="btn btn-danger"><i class="bi bi-arrow-repeat"></i> Renew</a>
                 <a href="edit_member.php?id=<?= $member['id'] ?>" class="btn btn-light"><i class="bi bi-pencil"></i> Edit</a>
-                <a href="index.php" class="btn btn-outline-light"><i class="bi bi-arrow-left"></i> Back</a>
+                <a href="<?= htmlspecialchars($back_url) ?>" class="btn btn-outline-light"><i class="bi bi-arrow-left"></i> Back</a>
             </div>
         </div>
         <div class="card-body p-3 p-md-4">

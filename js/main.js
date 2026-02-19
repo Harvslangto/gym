@@ -8,14 +8,12 @@ function calculateAmount(isEditPage = false) {
 
     const selectedOption = typeSelect.options[typeSelect.selectedIndex];
     const price = parseFloat(selectedOption.getAttribute('data-price'));
-    const isWalkIn = typeSelect.value.includes('Walk-in');
+    const isWalkIn = selectedOption.getAttribute('data-is-walk-in') === '1';
 
     if (isWalkIn) {
         durationLabel.innerText = 'Days';
-        if (!isEditPage) {
-            durationInput.value = 1;
-            durationInput.readOnly = true;
-        }
+        durationInput.value = 1;
+        durationInput.readOnly = true;
     } else {
         durationLabel.innerText = 'Months';
         durationInput.readOnly = false;
@@ -31,8 +29,8 @@ function calculateAmount(isEditPage = false) {
         if (isWalkIn) {
             endDate.setDate(startDate.getDate() + duration - 1);
         } else {
-            // Fixed 30 days per month
-            endDate.setDate(startDate.getDate() + (duration * 30) - 1);
+            endDate.setMonth(startDate.getMonth() + duration);
+            endDate.setDate(endDate.getDate() - 1);
         }
 
         if (endInput && endInput._flatpickr) {

@@ -11,6 +11,9 @@ $conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() A
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
 
+// Fetch membership types for filter dropdown
+$types_result = $conn->query("SELECT type_name FROM membership_types ORDER BY type_name");
+
 if($type && $search){
     $stmt = $conn->prepare("SELECT * FROM members WHERE membership_type = ? AND (full_name LIKE ? OR birth_date LIKE ?) ORDER BY id DESC");
     $searchTerm = "%$search%";
@@ -42,6 +45,9 @@ if($type && $search){
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
+        @media (max-width: 576px) {
+            h2 { font-size: 1.5rem; }
+        }
         body { font-family: 'Inter', sans-serif; }
         body {
             background: linear-gradient(135deg, #000000, #4a0000);
@@ -174,20 +180,25 @@ if($type && $search){
             .table tbody td:first-child::before { display: none; }
             
             /* Action styling (Card Footer) */
-            .table tbody td:last-child {
+            .table tbody .actions-cell {
                 border-bottom: none;
                 padding: 1rem;
-                justify-content: stretch;
+                justify-content: center;
             }
-            .table tbody td:last-child::before { display: none; }
-            .table tbody td:last-child .btn { width: 100%; }
+            .table tbody .actions-cell::before { display: none; }
+            .table tbody .actions-cell .btn { flex-grow: 1; }
+
+            .table-hover tbody tr:hover {
+                transform: scale(1.02);
+                transition: transform 0.2s ease-in-out;
+                cursor: pointer;
+            }
         }
     </style>
 </head>
 
 <body class="text-white">
 <div class="container-xl my-3">
-
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <h2 class="text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Gym Members <span class="badge bg-danger fs-6 align-middle ms-2" style="box-shadow: 0 0 10px rgba(220,53,69,0.5);"><?= $result->num_rows ?></span></h2>
         <div class="d-flex gap-2 flex-wrap">
@@ -205,10 +216,9 @@ if($type && $search){
             <div class="col-12 col-md-3">
                 <select name="type" class="form-select">
                     <option value="">All Types</option>
-                    <option value="Regular" <?= $type == 'Regular' ? 'selected' : '' ?>>Regular</option>
-                    <option value="Student" <?= $type == 'Student' ? 'selected' : '' ?>>Student</option>
-                    <option value="Walk-in Regular" <?= $type == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular</option>
-                    <option value="Walk-in Student" <?= $type == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student</option>
+                    <?php if(isset($types_result) && $types_result->num_rows > 0) { while($t = $types_result->fetch_assoc()): ?>
+                        <option value="<?= htmlspecialchars($t['type_name']) ?>" <?= $type == $t['type_name'] ? 'selected' : '' ?>><?= htmlspecialchars($t['type_name']) ?></option>
+                    <?php endwhile; } ?>
                 </select>
             </div>
             <div class="col-auto">
@@ -238,24 +248,17 @@ if($type && $search){
                 <tbody>
                 <?php while($row = $result->fetch_assoc()): ?>
                     <?php
-                        $start = new DateTime($row['start_date']);
                         $end = new DateTime($row['end_date']);
                         $now = new DateTime('today');
-                        
-                        if($start > $now){
-                            $diff = $start->diff($end);
-                        } else {
-                            $diff = $now->diff($end);
-                        }
-                        
+                        $diff = $now->diff($end);
                         $days = (int)$diff->format('%r%a');
-                        if($days >= 0) $days = $days + 1;
+                        if($row['status'] == 'Active' && $days >= 0) $days++;
                     ?>
-                    <tr>
+                    <tr onclick="window.location='view_member.php?id=<?= $row['id'] ?>';" style="cursor: pointer;">
                         <td data-label="Name">
-                            <a href="view_member.php?id=<?= $row['id'] ?>" class="text-danger text-decoration-none fw-bold">
+                            <span class="fw-bold">
                                 <?= htmlspecialchars($row['full_name']) ?>
-                            </a>
+                            </span>
                         </td>
                         <td data-label="Type"><?= htmlspecialchars($row['membership_type']) ?></td>
                         <td data-label="Start Date"><?= date('M d, Y', strtotime($row['start_date'])) ?></td>
@@ -274,8 +277,8 @@ if($type && $search){
                                 <span class="badge bg-secondary"><?= $row['status'] ?></span>
                             <?php endif; ?>
                         </td>
-                        <td data-label="Action">
-                            <a href="edit_member.php?id=<?= $row['id'] ?>" class="btn btn-sm btn-dark">Edit</a>
+                        <td class="actions-cell" data-label="Action">
+                            <button type="button" class="btn btn-sm btn-dark" onclick="event.stopPropagation(); confirmEdit(<?= $row['id'] ?>)">Edit</button>
                         </td>
                     </tr>
                 <?php endwhile; ?>
@@ -302,6 +305,31 @@ if($type && $search){
         </div>
     </div>
 </div>
+
+<!-- Edit Confirmation Modal -->
+<div class="modal fade" id="editConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-pencil-square text-warning" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">Edit Member</h4>
+                <p class="text-secondary mb-4">Are you sure you want to edit this member?</p>
+                <div class="d-grid gap-2">
+                    <a href="#" id="confirmEditBtn" class="btn btn-danger">Yes, Edit</a>
+                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function confirmEdit(id) {
+    document.getElementById('confirmEditBtn').href = 'edit_member.php?id=' + id;
+    var myModal = new bootstrap.Modal(document.getElementById('editConfirmModal'));
+    myModal.show();
+}
+</script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <style>
 body.light-mode { background: #f8f9fa !important; color: #212529 !important; }

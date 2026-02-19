@@ -25,34 +25,49 @@ if(!$member){
 
 if(isset($_POST['renew'])){
     $membership_type = $_POST['membership_type'];
-    $months = (int)$_POST['months'];
     $amount = $_POST['amount'];
     $start = $_POST['start']; // New start date
 
-    $is_walk_in = strpos($membership_type, 'Walk-in') !== false;
+    $stmt_check = $conn->prepare("SELECT duration_unit FROM membership_types WHERE type_name = ?");
+    $stmt_check->bind_param("s", $membership_type);
+    $stmt_check->execute();
+    $type_info = $stmt_check->get_result()->fetch_assoc();
+    $is_walk_in = ($type_info && $type_info['duration_unit'] == 'Day');
+
+    // For walk-ins, duration is always 1 day, regardless of input
+    $months = $is_walk_in ? 1 : (int)$_POST['months'];
     
     $start_dt = new DateTime($start);
     if($is_walk_in){
         $start_dt->modify('+' . ($months - 1) . ' days');
     } else {
-        $days = $months * 30;
-        $start_dt->modify('+' . ($days - 1) . ' days');
+        $start_dt->modify('+' . $months . ' months')->modify('-1 day');
     }
     $end = $start_dt->format('Y-m-d');
 
-    // Update member record
-    $update = $conn->prepare("UPDATE members SET membership_type=?, amount=?, start_date=?, end_date=?, status='Active' WHERE id=?");
-    $update->bind_param("sdssi", $membership_type, $amount, $start, $end, $id);
-    
-    if($update->execute()){
+    $conn->begin_transaction();
+    try {
+        // Update member record
+        $update = $conn->prepare("UPDATE members SET membership_type=?, amount=?, start_date=?, end_date=?, status='Active' WHERE id=?");
+        $update->bind_param("sdssi", $membership_type, $amount, $start, $end, $id);
+        if (!$update->execute()) throw new Exception($conn->error);
+
+        // Insert new payment record
         $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)");
         $stmt_pay->bind_param("ids", $id, $amount, $start);
-        $stmt_pay->execute();
+        if (!$stmt_pay->execute()) throw new Exception($conn->error);
+
+        $conn->commit();
+        logActivity($conn, $_SESSION['admin_id'], 'Renew Member', "Renewed membership for: " . $member['full_name']);
         $success = true;
-    } else {
-        $error = "Error renewing member.";
+    } catch (Exception $e) {
+        $conn->rollback();
+        $error = "Error renewing member: " . $e->getMessage();
     }
 }
+
+// Fetch types
+$types_result = $conn->query("SELECT * FROM membership_types");
 ?>
 <!DOCTYPE html>
 <html>
@@ -131,10 +146,15 @@ if(isset($_POST['renew'])){
                 <div class="mb-3">
                     <label class="form-label">Membership Type</label>
                     <select name="membership_type" id="membership_type" class="form-select" onchange="calculateAmount()">
-                        <option value="Regular" data-price="999" <?= $member['membership_type'] == 'Regular' ? 'selected' : '' ?>>Regular (₱999/mo)</option>
-                        <option value="Student" data-price="799" <?= $member['membership_type'] == 'Student' ? 'selected' : '' ?>>Student (₱799/mo)</option>
-                        <option value="Walk-in Regular" data-price="69" <?= $member['membership_type'] == 'Walk-in Regular' ? 'selected' : '' ?>>Walk-in Regular (₱69/day)</option>
-                        <option value="Walk-in Student" data-price="59" <?= $member['membership_type'] == 'Walk-in Student' ? 'selected' : '' ?>>Walk-in Student (₱59/day)</option>
+                        <?php while($t = $types_result->fetch_assoc()): 
+                            $is_wi = ($t['duration_unit'] == 'Day') ? '1' : '0';
+                            $unit_lbl = ($t['duration_unit'] == 'Day') ? '/day' : '/mo';
+                            $selected = ($member['membership_type'] == $t['type_name']) ? 'selected' : '';
+                        ?>
+                            <option value="<?= $t['type_name'] ?>" data-price="<?= $t['price'] ?>" data-is-walk-in="<?= $is_wi ?>" <?= $selected ?>>
+                                <?= $t['type_name'] ?> (₱<?= $t['price'] . $unit_lbl ?>)
+                            </option>
+                        <?php endwhile; ?>
                     </select>
                 </div>
                 <div class="mb-3">

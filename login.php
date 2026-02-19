@@ -17,7 +17,7 @@ if(isset($_POST['login'])){
 
     if($result->num_rows > 0){
         $row = $result->fetch_assoc();
-        if($password == $row['password']){
+        if(password_verify($password, $row['password'])){
             session_regenerate_id(true);
             $_SESSION['admin_id'] = $row['id'];
             header("Location: index.php");
@@ -103,14 +103,14 @@ if(isset($_POST['login'])){
                 <label class="form-label text-secondary">Username</label>
                 <div class="input-group">
                     <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-person-fill"></i></span>
-                    <input type="text" name="username" class="form-control" placeholder="Enter username" required>
+                    <input type="text" name="username" class="form-control" placeholder="Enter username" required autocomplete="off">
                 </div>
             </div>
             <div class="mb-4">
                 <label class="form-label text-secondary">Password</label>
                 <div class="input-group">
                     <span class="input-group-text bg-dark border-secondary text-secondary"><i class="bi bi-lock-fill"></i></span>
-                    <input type="password" name="password" class="form-control" placeholder="Enter password" required>
+                    <input type="password" name="password" class="form-control" placeholder="Enter password" required autocomplete="off">
                 </div>
             </div>
             <button name="login" class="btn btn-login w-100 py-2 text-white">LOGIN</button>

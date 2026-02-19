@@ -1,10 +1,12 @@
 <?php 
 include "db.php"; 
-include "includes/calculations.php";
 if(!isset($_SESSION['admin_id'])){
     header("Location: login.php");
     exit;
 }
+
+// Fetch membership types from DB
+$types_result = $conn->query("SELECT * FROM membership_types");
 ?>
 <!DOCTYPE html>
 <html>
@@ -63,12 +65,28 @@ if(!isset($_SESSION['admin_id'])){
         }
         option {
             background-color: #222;
-            color: #000;
+            color: white;
         }
         @media (min-width: 768px) {
             .container-xl {
                 margin: auto !important;
             }
+        }
+        #photo_upload_area {
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+        #photo_upload_area:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-color: #dc3545;
+        }
+        #preview_image {
+            width: 150px; height: 150px; object-fit: cover;
+            border-radius: 50%; border: 3px solid #dc3545;
         }
     </style>
 </head>
@@ -117,10 +135,14 @@ if(!isset($_SESSION['admin_id'])){
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Membership Type</label>
                         <select name="membership_type" id="membership_type" class="form-select" onchange="calculateAmount()">
-                            <option value="Regular" data-price="999">Regular (₱999/mo)</option>
-                            <option value="Student" data-price="799">Student (₱799/mo)</option>
-                            <option value="Walk-in Regular" data-price="69">Walk-in Regular (₱69/day)</option>
-                            <option value="Walk-in Student" data-price="59">Walk-in Student (₱59/day)</option>
+                            <?php while($t = $types_result->fetch_assoc()): 
+                                $is_walk_in = ($t['duration_unit'] == 'Day') ? '1' : '0';
+                                $unit_label = ($t['duration_unit'] == 'Day') ? '/day' : '/mo';
+                            ?>
+                                <option value="<?= $t['type_name'] ?>" data-price="<?= $t['price'] ?>" data-is-walk-in="<?= $is_walk_in ?>">
+                                    <?= $t['type_name'] ?> (₱<?= $t['price'] . $unit_label ?>)
+                                </option>
+                            <?php endwhile; ?>
                         </select>
                     </div>
                 </div>
@@ -144,16 +166,24 @@ if(!isset($_SESSION['admin_id'])){
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Photo</label>
-                        <input type="file" name="photo" id="photo_input" class="form-control" accept="image/*" required>
+                        <input type="file" name="photo" id="photo_input" class="d-none" accept="image/*">
                         <input type="hidden" name="cropped_image" id="cropped_image">
-                        <div id="preview_container" class="mt-3" style="display:none;">
-                            <img id="preview_image" src="" class="img-thumbnail" style="max-width: 200px; max-height: 200px;">
+                        
+                        <div id="photo_upload_area" onclick="document.getElementById('photo_input').click()">
+                            <div id="upload_placeholder">
+                                <i class="bi bi-camera-fill" style="font-size: 2rem; color: #aaa;"></i>
+                                <p class="text-secondary mb-0 mt-2">Click to Upload Photo</p>
+                            </div>
+                            <div id="preview_container" class="text-center" style="display:none;">
+                                <img id="preview_image" src="">
+                                <p class="text-secondary mb-0 mt-2"><small>Click image to change</small></p>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
-                    <a href="index.php" class="btn btn-dark px-4">Cancel</a>
-                    <button name="save" class="btn btn-danger">Save Member</button>
+                <div class="row g-2 mt-4 justify-content-end">
+                    <div class="col-12 col-md-auto"><a href="index.php" class="btn btn-dark w-100">Cancel</a></div>
+                    <div class="col-12 col-md-auto"><button name="save" class="btn btn-danger w-100">Save Member</button></div>
                 </div>
             </form>
 
@@ -193,21 +223,28 @@ if(!isset($_SESSION['admin_id'])){
                 } else {
                 $contact = $_POST['contact'];
                 $start = $_POST['start'];
-                $months = (int)$_POST['months'];
                 $address = $_POST['address'];
                 $birth_date = $_POST['birth_date'];
                 $gender = $_POST['gender'];
                 $membership_type = $_POST['membership_type'];
                 $amount = $_POST['amount'];
 
-                $is_walk_in = strpos($membership_type, 'Walk-in') !== false;
+                // Determine if walk-in based on DB type
+                $stmt_type = $conn->prepare("SELECT duration_unit FROM membership_types WHERE type_name = ?");
+                $stmt_type->bind_param("s", $membership_type);
+                $stmt_type->execute();
+                $type_data = $stmt_type->get_result()->fetch_assoc();
+                $is_walk_in = ($type_data && $type_data['duration_unit'] == 'Day');
+
+                // For walk-ins, duration is always 1 day, regardless of input
+                $months = $is_walk_in ? 1 : (int)$_POST['months'];
                 
                 $start_dt = new DateTime($start);
                 if($is_walk_in){
+                    // Logic for days
                     $start_dt->modify('+' . ($months - 1) . ' days');
                 } else {
-                    $days = $months * 30;
-                    $start_dt->modify('+' . ($days - 1) . ' days');
+                    $start_dt->modify('+' . $months . ' months')->modify('-1 day');
                 }
                 $end = $start_dt->format('Y-m-d');
 
@@ -238,36 +275,33 @@ if(!isset($_SESSION['admin_id'])){
                     }
                 }
 
+                $conn->begin_transaction();
+                try {
                 $stmt = $conn->prepare("INSERT INTO members (full_name, contact_number, address, birth_date, gender, membership_type, amount, start_date, end_date, status, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)");
                 $stmt->bind_param("ssssssdsss", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $photo_path);
 
-                if($stmt->execute()){
-                    $member_id = $stmt->insert_id;
-                    $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)");
-                    $stmt_pay->bind_param("ids", $member_id, $amount, $start);
-                    $stmt_pay->execute();
-                    echo '
-                   <div class="modal fade" id="successModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
-                        <div class="modal-dialog modal-dialog-centered">
-                            <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
-                                <div class="modal-body text-center p-4">
-                                    <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
-                                    <h4 class="mt-3 fw-bold">Success!</h4>
-                                    <p class="text-secondary mb-4">Member has been added successfully.</p>
-                                    <button type="button" class="btn btn-danger w-100" onclick="window.location=\'index.php\'">Okay</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <script>
-                        document.addEventListener("DOMContentLoaded", function() {
-                            var myModal = new bootstrap.Modal(document.getElementById("successModal"));
-                            myModal.show();
-                        });
-                    </script>';
-                } else {
-                    echo "<div class='alert alert-danger'>Error: " . $stmt->error . "</div>";
+                    if(!$stmt->execute()){
+                        throw new Exception($stmt->error);
+                    }
+
+                    $member_id = $stmt->insert_id; 
+                    $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)"); 
+                    $stmt_pay->bind_param("ids", $member_id, $amount, $start); 
+                    if(!$stmt_pay->execute()){
+                        throw new Exception($stmt_pay->error);
+                    }
+
+                    $conn->commit();
+                    logActivity($conn, $_SESSION['admin_id'], 'Add Member', "Added new member: $name ($membership_type)");
+
+                    echo ' <div class="modal fade" id="successModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true"> <div class="modal-dialog modal-dialog-centered"> <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;"> <div class="modal-body text-center p-4"> <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i> <h4 class="mt-3 fw-bold">Success!</h4> <p class="text-secondary mb-4">Member has been added successfully.</p> <button type="button" class="btn btn-danger w-100" onclick="window.location=\'index.php\'">Okay</button> </div> </div> </div> </div> <script> document.addEventListener("DOMContentLoaded", function() { var myModal = new bootstrap.Modal(document.getElementById("successModal")); myModal.show(); }); </script>';
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    echo "<div class='alert alert-danger'>Error: " . $e->getMessage() . "</div>";
                 }
+                /*
+                if($stmt->execute()){ ... } else { ... }
+                */
                 }
             }
             ?>
@@ -375,6 +409,7 @@ if(!isset($_SESSION['admin_id'])){
             croppedImageInput.value = base64data;
             previewImage.src = base64data;
             previewContainer.style.display = 'block';
+            document.getElementById('upload_placeholder').style.display = 'none';
             cropModal.hide();
         }
     });
