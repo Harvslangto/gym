@@ -11,7 +11,7 @@ if(!isset($_GET['id'])){
 }
 
 // Automatically update expired members
-$conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() AND status = 'Active'");
+checkAndLogExpirations($conn, $_SESSION['admin_id']);
 
 $id = $_GET['id'];
 $stmt = $conn->prepare("SELECT * FROM members WHERE id = ?");
@@ -30,7 +30,8 @@ $back_url = 'index.php'; // Default back URL
 if (isset($_GET['return_to']) && !empty($_GET['return_to'])) {
     // Basic validation to prevent open redirect vulnerabilities
     $decoded_url = urldecode($_GET['return_to']);
-    if (parse_url($decoded_url, PHP_URL_HOST) === null) {
+    // Ensure it is a relative path and does not contain a scheme (like javascript:)
+    if (parse_url($decoded_url, PHP_URL_SCHEME) === null && parse_url($decoded_url, PHP_URL_HOST) === null) {
         $back_url = $decoded_url;
     }
 }
@@ -61,6 +62,12 @@ $now = new DateTime('today');
 $diff = $now->diff($end_date);
 $remaining_days = (int)$diff->format('%r%a');
 if($member['status'] == 'Active' && $remaining_days >= 0) $remaining_days++; // Add 1 to be inclusive of the end day
+
+// Fetch Payment History
+$stmt_pay = $conn->prepare("SELECT * FROM payments WHERE member_id = ? ORDER BY payment_date DESC");
+$stmt_pay->bind_param("i", $id);
+$stmt_pay->execute();
+$payments = $stmt_pay->get_result();
 ?>
 
 <!DOCTYPE html>
@@ -148,6 +155,7 @@ if($member['status'] == 'Active' && $remaining_days >= 0) $remaining_days++; // 
             <div class="d-flex gap-2 flex-wrap justify-content-between justify-content-md-end">
                 <a href="renew_member.php?id=<?= $member['id'] ?>" class="btn btn-danger"><i class="bi bi-arrow-repeat"></i> Renew</a>
                 <a href="edit_member.php?id=<?= $member['id'] ?>" class="btn btn-light"><i class="bi bi-pencil"></i> Edit</a>
+                <button type="button" class="btn btn-dark" onclick="confirmDelete(<?= $member['id'] ?>)"><i class="bi bi-trash"></i> Delete</button>
                 <a href="<?= htmlspecialchars($back_url) ?>" class="btn btn-outline-light"><i class="bi bi-arrow-left"></i> Back</a>
             </div>
         </div>
@@ -198,10 +206,62 @@ if($member['status'] == 'Active' && $remaining_days >= 0) $remaining_days++; // 
                         <div class="col-md-6"><div class="detail-item"><span class="detail-label"><i class="bi bi-calendar-x text-danger"></i> End Date</span><div class="detail-value"><?= date('M d, Y', strtotime($member['end_date'])) ?></div></div></div>
                     </div>
                 </div>
+
+                <div class="col-12 mt-4">
+                    <h5 class="text-secondary mb-3 border-bottom border-secondary pb-2">Payment History</h5>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover align-middle mb-0" style="background: transparent;">
+                            <thead>
+                                <tr>
+                                    <th class="text-secondary">Date</th>
+                                    <th class="text-secondary">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php while($pay = $payments->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?= date('M d, Y', strtotime($pay['payment_date'])) ?></td>
+                                    <td class="text-success fw-bold">₱<?= number_format($pay['amount'], 2) ?></td>
+                                </tr>
+                                <?php endwhile; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background: rgba(20, 20, 20, 0.95); border: 1px solid #dc3545; color: white;">
+            <div class="modal-body text-center p-4">
+                <i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 3rem;"></i>
+                <h4 class="mt-3 fw-bold">Delete Member?</h4>
+                <p class="text-secondary mb-4">This will permanently remove the member and all their payment history. This cannot be undone.</p>
+                <div class="d-grid gap-2">
+                    <form method="POST" action="delete_member.php" id="deleteForm">
+                        <input type="hidden" name="id" id="deleteId">
+                        <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
+                        <button type="submit" class="btn btn-danger w-100">Yes, Delete Permanently</button>
+                    </form>
+                    <button type="button" class="btn btn-dark" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function confirmDelete(id) {
+    document.getElementById('deleteId').value = id;
+    var myModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    myModal.show();
+}
+</script>
 <style>
 body.light-mode { background: #f8f9fa !important; color: #212529 !important; }
 body.light-mode .card.bg-dark, body.light-mode .premium-card, body.light-mode .login-card { background-color: #fff !important; color: #212529 !important; border: 1px solid #dee2e6 !important; box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important; }

@@ -7,6 +7,25 @@ if(isset($_SESSION['admin_id'])){
 }
 
 if(isset($_POST['login'])){
+    if(!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']){
+        $error = "CSRF validation failed.";
+    } else {
+        $ip = $_SERVER['REMOTE_ADDR'];
+        
+        // Check Rate Limit
+        $stmt_limit = $conn->prepare("SELECT attempts, last_attempt FROM login_attempts WHERE ip_address = ?");
+        $stmt_limit->bind_param("s", $ip);
+        $stmt_limit->execute();
+        $res_limit = $stmt_limit->get_result();
+        
+        if($res_limit->num_rows > 0){
+            $row_limit = $res_limit->fetch_assoc();
+            if($row_limit['attempts'] >= 5 && strtotime($row_limit['last_attempt']) > (time() - 900)){
+                $error = "Too many failed attempts. Please try again in 15 minutes.";
+            }
+        }
+
+        if(!isset($error)){
     $username = $_POST['username'];
     $password = $_POST['password'];
 
@@ -20,13 +39,25 @@ if(isset($_POST['login'])){
         if(password_verify($password, $row['password'])){
             session_regenerate_id(true);
             $_SESSION['admin_id'] = $row['id'];
+                    $_SESSION['last_activity'] = time(); // Initialize timeout timer
+                    
+                    // Reset attempts on success
+                    $conn->query("DELETE FROM login_attempts WHERE ip_address = '$ip'");
+                    
+            logActivity($conn, $_SESSION['admin_id'], 'Login', 'Admin logged in successfully');
             header("Location: index.php");
             exit;
         } else {
-            $error = "Incorrect password";
+                    // Record failed attempt
+                    $conn->query("INSERT INTO login_attempts (ip_address, attempts) VALUES ('$ip', 1) ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt = NOW()");
+                    $error = "Invalid username or password";
         }
     } else {
-        $error = "User not found";
+                // Record failed attempt (even for unknown user to prevent enumeration timing attacks)
+                $conn->query("INSERT INTO login_attempts (ip_address, attempts) VALUES ('$ip', 1) ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt = NOW()");
+                $error = "Invalid username or password";
+    }
+        }
     }
 }
 ?>
@@ -97,8 +128,10 @@ if(isset($_POST['login'])){
         </div>
         
         <?php if(isset($error)) echo "<div class='alert alert-danger bg-transparent text-danger border-danger'>$error</div>"; ?>
+        <?php if(isset($_GET['timeout'])) echo "<div class='alert alert-warning bg-transparent text-warning border-warning'>Session expired. Please login again.</div>"; ?>
         
-        <form method="POST">
+        <form method="POST" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
             <div class="mb-4">
                 <label class="form-label text-secondary">Username</label>
                 <div class="input-group">

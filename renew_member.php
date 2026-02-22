@@ -24,18 +24,28 @@ if(!$member){
 }
 
 if(isset($_POST['renew'])){
+    if(!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']){
+        die('<div class="alert alert-danger">CSRF validation failed.</div>');
+    }
+
     $membership_type = $_POST['membership_type'];
-    $amount = $_POST['amount'];
     $start = $_POST['start']; // New start date
 
-    $stmt_check = $conn->prepare("SELECT duration_unit FROM membership_types WHERE type_name = ?");
+    $stmt_check = $conn->prepare("SELECT price, duration_unit FROM membership_types WHERE type_name = ?");
     $stmt_check->bind_param("s", $membership_type);
     $stmt_check->execute();
     $type_info = $stmt_check->get_result()->fetch_assoc();
     $is_walk_in = ($type_info && $type_info['duration_unit'] == 'Day');
+    $base_price = $type_info['price'];
 
     // For walk-ins, duration is always 1 day, regardless of input
     $months = $is_walk_in ? 1 : (int)$_POST['months'];
+    if($months < 1) {
+        die('<div class="alert alert-danger">Duration must be at least 1.</div>');
+    }
+    if($months > 60) {
+        die('<div class="alert alert-danger">Duration cannot exceed 60 months (5 years).</div>');
+    }
     
     $start_dt = new DateTime($start);
     if($is_walk_in){
@@ -44,6 +54,9 @@ if(isset($_POST['renew'])){
         $start_dt->modify('+' . $months . ' months')->modify('-1 day');
     }
     $end = $start_dt->format('Y-m-d');
+
+    // Recalculate amount
+    $amount = $base_price * $months;
 
     $conn->begin_transaction();
     try {
@@ -120,7 +133,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         }
         option {
             background-color: #222;
-            color: #000;
+            color: white;
         }
         @media (min-width: 768px) {
             .container-xl {
@@ -138,7 +151,8 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         </div>
         <div class="card-body p-3 p-md-4">
             <?php if(isset($error)): ?><div class='alert alert-danger'><?= $error ?></div><?php endif; ?>
-            <form method="POST">
+            <form method="POST" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                 <div class="mb-3">
                     <label class="form-label">Start Date</label>
                     <input type="date" name="start" id="start_date" class="form-control" value="<?= date('Y-m-d') ?>" required onchange="calculateAmount()">

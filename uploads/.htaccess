@@ -1,0 +1,6 @@
+# Security: Prevent PHP execution in this directory
+<FilesMatch "\.(php|php5|phtml|php7)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+Options -Indexes

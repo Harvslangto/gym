@@ -6,7 +6,7 @@ if(!isset($_SESSION['admin_id'])){
 }
 
 // Automatically update expired members
-$conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() AND status = 'Active'");
+checkAndLogExpirations($conn, $_SESSION['admin_id']);
 
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 
@@ -97,6 +97,14 @@ $daily_stats = $stmt_d->get_result();
 
 // Fetch membership types for filter dropdown
 $types_result_dash = $conn->query("SELECT type_name FROM membership_types ORDER BY type_name");
+
+// Build query string for persistence
+$qs = http_build_query([
+    'type' => $type,
+    'year' => $selected_year,
+    'month' => $selected_month,
+    'day' => $selected_day
+]);
 ?>
 
 <!DOCTYPE html>
@@ -228,11 +236,12 @@ $types_result_dash = $conn->query("SELECT type_name FROM membership_types ORDER 
 <div class="container-xl my-3">
 <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
     <h2 class="mb-0 text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Gym Dashboard</h2>
-    <div class="d-flex gap-2">
-        <a href="settings.php" class="btn btn-outline-light btn-sm"><i class="bi bi-gear"></i> Settings</a>
-        <a href="activity_logs.php" class="btn btn-outline-light btn-sm"><i class="bi bi-clock-history"></i> Logs</a>
-        <a href="index.php" class="btn btn-outline-light btn-sm">Go to Member List</a>
-        <button type="button" class="btn btn-outline-light btn-sm" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
+    <div class="d-flex gap-2 align-items-center">
+        <a href="index.php" class="btn btn-danger px-4 fw-bold shadow-sm"><i class="bi bi-people-fill me-2"></i>Back to Members</a>
+        <div class="vr mx-2 bg-secondary opacity-50 d-none d-sm-block"></div>
+        <a href="settings.php?<?= $qs ?>" class="btn btn-dark border-secondary shadow-sm" title="Settings"><i class="bi bi-gear-fill"></i> <span class="d-none d-md-inline ms-1">Settings</span></a>
+        <a href="activity_logs.php?<?= $qs ?>" class="btn btn-dark border-secondary shadow-sm" title="Activity Logs"><i class="bi bi-clock-history"></i> <span class="d-none d-md-inline ms-1">Logs</span></a>
+        <button type="button" class="btn btn-outline-light shadow-sm ms-2" data-bs-toggle="modal" data-bs-target="#logoutModal" title="Logout"><i class="bi bi-power"></i></button>
     </div>
 </div>
 
@@ -303,7 +312,7 @@ $types_result_dash = $conn->query("SELECT type_name FROM membership_types ORDER 
         <div class="card premium-card mb-3">
             <div class="card-header bg-transparent d-flex justify-content-center justify-content-md-between align-items-center flex-wrap gap-3" style="border-bottom: 1px solid #4a0000;">
                 <h5 class="mb-0 text-uppercase text-center w-100" style="letter-spacing: 1px;">Daily Breakdown (<?= htmlspecialchars($daily_breakdown_title_date) ?>)</h5>
-                <form method="GET" class="w-100">
+                <form method="GET" class="w-100" autocomplete="off">
                     <div class="row g-2 justify-content-center align-items-center">
                         <div class="col-12 col-sm-6 col-md-auto">
                             <select name="type" class="form-select" style="background: #fff; color: #000; border: 1px solid #4a0000; text-align: center;">
@@ -362,7 +371,7 @@ $types_result_dash = $conn->query("SELECT type_name FROM membership_types ORDER 
                             if($daily_stats->num_rows > 0):
                                 while($row = $daily_stats->fetch_assoc()): 
                             ?>
-                            <tr style="cursor: pointer;" onclick="window.location='view_daily_members.php?date=<?= $row['date'] ?>'">
+                            <tr style="cursor: pointer;" onclick="window.location='view_daily_members.php?date=<?= $row['date'] ?>&<?= $qs ?>'">
                                 <td class="text-center"><?= htmlspecialchars(date('M d, Y', strtotime($row['date']))) ?></td>
                                 <td class="text-center"><span class="badge bg-danger rounded-pill"><?= htmlspecialchars($row['count']) ?></span></td>
                                 <td class="text-center">₱<?= htmlspecialchars(number_format($row['revenue'], 2)) ?></td>

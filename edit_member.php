@@ -34,16 +34,28 @@ $months_duration = get_membership_duration_in_months_or_days($member['start_date
 if($months_duration < 1) $months_duration = 1;
 
 if(isset($_POST['update'])){
+    if(!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']){
+        die('<div class="alert alert-danger">CSRF validation failed. Please refresh and try again.</div>');
+    }
+
     $name = $_POST['name'];
     $contact = $_POST['contact'];
+    $gender = $_POST['gender'];
+
+    // Strict Backend Validation
+    if(!preg_match('/^09[0-9]{9}$/', $contact)){
+        throw new Exception("Invalid contact number. Must be 11 digits starting with 09.");
+    }
+    if(!in_array($gender, ['Male', 'Female', 'Other'])){
+        throw new Exception("Invalid sex selected.");
+    }
+
     $address = $_POST['address'];
     $birth_date = $_POST['birth_date'];
     if(empty($birth_date) || $birth_date == '0000-00-00' || $birth_date == '1970-01-01'){
         $birth_date = $member['birth_date'];
     }
-    $gender = $_POST['gender'];
     $membership_type = $_POST['membership_type'];
-    $amount = $_POST['amount'];
     $start = $_POST['start']; 
     $status = $_POST['status'];
 
@@ -53,13 +65,21 @@ if(isset($_POST['update'])){
     }
 
     // Check type again for POST data
+    $stmt_check = $conn->prepare("SELECT price, duration_unit FROM membership_types WHERE type_name = ?");
     $stmt_check->bind_param("s", $membership_type);
     $stmt_check->execute();
     $type_info_post = $stmt_check->get_result()->fetch_assoc();
     $is_walk_in_post = ($type_info_post && $type_info_post['duration_unit'] == 'Day');
+    $base_price = $type_info_post['price'];
 
     // For walk-ins, duration is always 1 day, regardless of input
     $months = $is_walk_in_post ? 1 : (int)$_POST['months'];
+    if($months < 1) {
+        throw new Exception("Duration must be at least 1.");
+    }
+    if($months > 60) {
+        throw new Exception("Duration cannot exceed 60 months (5 years).");
+    }
     
     $start_dt = new DateTime($start);
     if($is_walk_in_post){
@@ -73,18 +93,24 @@ if(isset($_POST['update'])){
         $end = $member['end_date'];
     }
 
+    // Recalculate amount
+    $amount = $base_price * $months;
+
     $photo_path = $member['photo'];
     if(isset($_POST['cropped_image']) && !empty($_POST['cropped_image'])){
         $data = $_POST['cropped_image'];
         if (preg_match('/^data:image\/(\w+);base64,/', $data, $type)) {
             $data = substr($data, strpos($data, ',') + 1);
             $type = strtolower($type[1]); 
+            if(!in_array($type, ['jpg', 'jpeg', 'png', 'gif', 'webp'])){
+                throw new Exception("Invalid image type.");
+            }
             $data = base64_decode($data);
             
             if($data !== false){
                 $target_dir = "uploads/";
                 if(!is_dir($target_dir)) mkdir($target_dir);
-                $photo_path = $target_dir . uniqid() . "." . $type;
+                $photo_path = $target_dir . bin2hex(random_bytes(16)) . "." . $type;
                 file_put_contents($photo_path, $data);
             }
         }
@@ -93,8 +119,12 @@ if(isset($_POST['update'])){
         if($check !== false) {
             $target_dir = "uploads/";
             if(!is_dir($target_dir)) mkdir($target_dir);
-            $ext = pathinfo($_FILES["photo"]["name"], PATHINFO_EXTENSION);
-            $photo_path = $target_dir . uniqid() . "." . $ext;
+            $ext = strtolower(pathinfo($_FILES["photo"]["name"], PATHINFO_EXTENSION));
+            $allowed_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+            if(!in_array($ext, $allowed_exts)){
+                throw new Exception("Invalid file type. Only JPG, PNG, GIF, and WEBP are allowed.");
+            }
+            $photo_path = $target_dir . bin2hex(random_bytes(16)) . "." . $ext;
             move_uploaded_file($_FILES["photo"]["tmp_name"], $photo_path);
         }
     }
@@ -124,7 +154,11 @@ if(isset($_POST['update'])){
         $success = true;
     } catch (Exception $e) {
         $conn->rollback();
-        echo "<div class='alert alert-danger'>Error updating member: " . $e->getMessage() . "</div>";
+        $msg = $e->getMessage();
+        if(strpos($msg, 'Invalid') === false && strpos($msg, 'CSRF') === false) {
+            $msg = "An error occurred while updating. Please try again.";
+        }
+        echo "<div class='alert alert-danger'>Error: " . htmlspecialchars($msg) . "</div>";
     }
 }
 
@@ -220,7 +254,8 @@ $types_result = $conn->query("SELECT * FROM membership_types");
             <h4 class="mb-0 text-danger fw-bold"><i class="bi bi-pencil-square"></i> Edit Member</h4>
         </div>
         <div class="card-body p-3 p-md-4">
-            <form method="POST" enctype="multipart/form-data">
+            <form method="POST" enctype="multipart/form-data" autocomplete="off">
+                <input type="hidden" name="csrf_token" value="<?= $_SESSION['csrf_token'] ?>">
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Name</label>

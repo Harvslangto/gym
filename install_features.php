@@ -1,6 +1,15 @@
 <?php
 include "db.php";
 
+// Security Check: Prevent re-running if admin exists and user is not logged in
+$chk_admin_exists = $conn->query("SHOW TABLES LIKE 'admin'");
+if($chk_admin_exists->num_rows > 0) {
+    $chk_count = $conn->query("SELECT COUNT(*) as count FROM admin");
+    if($chk_count && $chk_count->fetch_assoc()['count'] > 0 && !isset($_SESSION['admin_id'])){
+        die("Installation already completed. Access denied.");
+    }
+}
+
 // 1. Create Membership Types Table
 $sql_types = "CREATE TABLE IF NOT EXISTS membership_types (
     id INT AUTO_INCREMENT PRIMARY KEY,

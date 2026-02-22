@@ -6,7 +6,7 @@ if(!isset($_SESSION['admin_id'])){
 }
 
 // Automatically update expired members
-$conn->query("UPDATE members SET status = 'Expired' WHERE end_date < CURDATE() AND status = 'Active'");
+checkAndLogExpirations($conn, $_SESSION['admin_id']);
 
 $type = isset($_GET['type']) ? $_GET['type'] : '';
 $search = isset($_GET['search']) ? $_GET['search'] : '';
@@ -96,7 +96,7 @@ if($type && $search){
             background-color: rgba(255, 255, 255, 0.05);
             color: white;
         }
-        option { background-color: #222; color: #000; }
+        option { background-color: #222; color: white; }
         
         /* Premium Button Styles */
         .btn-danger {
@@ -204,11 +204,11 @@ if($type && $search){
         <div class="d-flex gap-2 flex-wrap">
             <a href="add_member.php" class="btn btn-danger">+ Add Member</a>
             <a href="dashboard.php" class="btn btn-dark text-white">Dashboard</a>
-            <button type="button" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#logoutModal">Logout</button>
+            <button type="button" class="btn btn-outline-light shadow-sm" data-bs-toggle="modal" data-bs-target="#logoutModal" title="Logout"><i class="bi bi-power"></i></button>
         </div>
     </div>
 
-    <form method="GET" class="mb-3">
+    <form method="GET" class="mb-3" autocomplete="off">
         <div class="row g-2">
             <div class="col-12 col-md-4">
                 <input type="text" name="search" class="form-control" placeholder="Search Name or Birth Date..." value="<?= htmlspecialchars($search) ?>">

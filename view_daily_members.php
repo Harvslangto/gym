@@ -24,6 +24,13 @@ $stmt->bind_param("s", $date);
 $stmt->execute();
 $result = $stmt->get_result();
 
+$dashboard_qs = http_build_query([
+    'type' => $_GET['type'] ?? '',
+    'year' => $_GET['year'] ?? '',
+    'month' => $_GET['month'] ?? '',
+    'day' => $_GET['day'] ?? ''
+]);
+$back_url = "dashboard.php" . ($dashboard_qs ? "?$dashboard_qs" : "");
 ?>
 <!DOCTYPE html>
 <html>
@@ -72,6 +79,17 @@ $result = $stmt->get_result();
         }
         .btn-outline-light { border-width: 2px; font-weight: 600; transition: all 0.3s ease; }
         .btn-outline-light:hover { background: rgba(255,255,255,0.1); color: white; border-color: white; transform: translateY(-2px); }
+        .btn-dark {
+            background: linear-gradient(145deg, #1a1a1a, #2c2c2c);
+            border: 1px solid rgba(255,255,255,0.1);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s ease;
+        }
+        .btn-dark:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+            background: linear-gradient(145deg, #2c2c2c, #3d3d3d);
+        }
     </style>
 </head>
 <body class="text-white">
@@ -79,7 +97,7 @@ $result = $stmt->get_result();
 
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
         <h2 class="text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Members on <?= htmlspecialchars($formatted_date) ?></h2>
-        <a href="dashboard.php" class="btn btn-outline-light"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
+        <a href="<?= htmlspecialchars($back_url) ?>" class="btn btn-dark border-secondary shadow-sm"><i class="bi bi-arrow-left me-1"></i> Back to Dashboard</a>
     </div>
 
     <div class="card premium-card">
