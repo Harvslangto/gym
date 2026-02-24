@@ -23,11 +23,6 @@ $total = $counts['total'] ?? 0;
 $active = $counts['active'] ?? 0;
 $expired = $counts['expired'] ?? 0;
 
-$income_sql = "SELECT SUM(amount) as sum FROM payments";
-$stmt_income = $conn->prepare($income_sql);
-$stmt_income->execute();
-$total_income = $stmt_income->get_result()->fetch_assoc()['sum'];
-
 // Get Years for filter
 $years_q = $conn->query("SELECT DISTINCT YEAR(payment_date) as year FROM payments ORDER BY year DESC");
 $years = [];
@@ -40,6 +35,13 @@ if($years_q->num_rows > 0){
 }
 
 $selected_year = isset($_GET['year']) ? $_GET['year'] : $years[0];
+
+// Fetch income for the selected year
+$income_sql = "SELECT SUM(amount) as sum FROM payments WHERE YEAR(payment_date) = ?";
+$stmt_income = $conn->prepare($income_sql);
+$stmt_income->bind_param("i", $selected_year);
+$stmt_income->execute();
+$total_income = $stmt_income->get_result()->fetch_assoc()['sum'];
 $selected_month = isset($_GET['month']) ? $_GET['month'] : date('n');
 
 // If any filter is set (i.e. the URL has query parameters), use the 'day' from the filter.
@@ -296,8 +298,8 @@ $qs = http_build_query([
         <div class="card stat-card h-100 border-0" style="border-bottom: 3px solid #dc3545 !important;">
             <div class="card-body p-4 d-flex align-items-center justify-content-between">
                 <div>
-                    <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem; letter-spacing: 1.5px;">Total Income</h6>
-                    <h2 class="mb-0 fw-bold text-danger">₱<?= number_format($total_income ?: 0, 2) ?></h2>
+                    <h6 class="text-secondary text-uppercase mb-2" style="font-size: 0.75rem; letter-spacing: 1.5px;">Income (<?= $selected_year ?>)</h6>
+                    <h2 class="mb-0 fw-bold text-danger" style="font-size: 1.75rem;">₱<?= number_format($total_income ?: 0, 2) ?></h2>
                 </div>
                 <div class="icon-box">
                     <i class="bi bi-wallet2 text-danger fs-4"></i>

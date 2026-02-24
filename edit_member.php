@@ -57,7 +57,6 @@ if(isset($_POST['update'])){
     }
     $membership_type = $_POST['membership_type'];
     $start = $_POST['start']; 
-    $status = $_POST['status'];
 
     // Validate dates to prevent 0000-00-00 errors
     if(empty($start) || $start == '0000-00-00'){
@@ -95,6 +94,9 @@ if(isset($_POST['update'])){
 
     // Recalculate amount
     $amount = $base_price * $months;
+
+    // Auto-compute status based on end date
+    $status = ($end >= date('Y-m-d')) ? 'Active' : 'Expired';
 
     $photo_path = $member['photo'];
     if(isset($_POST['cropped_image']) && !empty($_POST['cropped_image'])){
@@ -135,12 +137,14 @@ if(isset($_POST['update'])){
         $update->bind_param("ssssssdssssi", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $status, $photo_path, $id);
         if (!$update->execute()) throw new Exception($conn->error);
 
-        // Update the corresponding payment record to reflect the corrected amount/date.
-        // This assumes the original payment is tied to the original start date.
-        $old_start = $member['start_date'];
-        $pay_update = $conn->prepare("UPDATE payments SET amount = ?, payment_date = ? WHERE member_id = ? AND payment_date = ? LIMIT 1");
-        $pay_update->bind_param("dsis", $amount, $start, $id, $old_start);
-        $pay_update->execute(); // We don't throw an error here, as the payment might not exist to be updated.
+        // To ensure financial reports on the dashboard are accurate after an edit (e.g., correcting a data entry error),
+        // we update the *most recent* payment record for this member. This keeps the member's current state
+        // and the financial history for the last transaction consistent. The payment date is NOT updated
+        // to preserve cash-basis accounting integrity (revenue is recognized when paid, not when service starts).
+        // We only update the amount in case the membership type/duration was changed.
+        $pay_update = $conn->prepare("UPDATE payments SET amount = ? WHERE id = (SELECT id FROM (SELECT id FROM payments WHERE member_id = ? ORDER BY payment_date DESC, id DESC LIMIT 1) p)");
+        $pay_update->bind_param("di", $amount, $id);
+        $pay_update->execute();
 
         $conn->commit();
         logActivity($conn, $_SESSION['admin_id'], 'Edit Member', "Updated member: $name");
@@ -292,7 +296,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                 <div class="row">
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Membership Type</label>
-                        <select name="membership_type" id="membership_type" class="form-select" onchange="calculateAmount(true)">
+                        <select name="membership_type" id="membership_type" class="form-select" onchange="handleMembershipTypeChange(); calculateAmount(true);">
                             <?php while($t = $types_result->fetch_assoc()): 
                                 $is_wi = ($t['duration_unit'] == 'Day') ? '1' : '0';
                                 $unit_lbl = ($t['duration_unit'] == 'Day') ? '/day' : '/mo';
@@ -326,13 +330,6 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                             <span class="input-group-text">₱</span>
                             <input type="number" name="amount" id="amount" class="form-control" value="<?= $member['amount'] ?>" readonly>
                         </div>
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Status</label>
-                        <select name="status" class="form-select">
-                            <option value="Active" <?= $member['status'] == 'Active' ? 'selected' : '' ?>>Active</option>
-                            <option value="Expired" <?= $member['status'] == 'Expired' ? 'selected' : '' ?>>Expired</option>
-                        </select>
                     </div>
                 </div>
                 <div class="mb-3">
@@ -443,6 +440,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "F j, Y",
+        minDate: "today",
         onChange: function(selectedDates, dateStr, instance) {
             calculateAmount(true);
         }
@@ -454,17 +452,70 @@ $types_result = $conn->query("SELECT * FROM membership_types");
     });
 
     document.addEventListener("DOMContentLoaded", function() {
+        handleMembershipTypeChange();
         calculateAmount(true);
         calculateAge();
     });
 
     document.getElementById('membership_type').addEventListener('change', function() {
+        handleMembershipTypeChange();
         calculateAmount(true);
     });
 
     document.getElementById('months').addEventListener('input', function() {
         calculateAmount(true);
     });
+
+    function handleMembershipTypeChange() {
+        const typeSelect = document.getElementById('membership_type');
+        const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+        const isWalkIn = selectedOption.dataset.isWalkIn === '1';
+        const monthsInput = document.getElementById('months');
+        const durationLabel = document.getElementById('duration_label');
+
+        if (isWalkIn) {
+            monthsInput.value = 1;
+            monthsInput.readOnly = true;
+            durationLabel.textContent = 'Days';
+        } else {
+            monthsInput.readOnly = false;
+            durationLabel.textContent = 'Months';
+        }
+    }
+
+    function calculateAmount(isEdit = false) {
+        const typeSelect = document.getElementById('membership_type');
+        const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+        const price = parseFloat(selectedOption.dataset.price);
+        const isWalkIn = selectedOption.dataset.isWalkIn === '1';
+        
+        const monthsInput = document.getElementById('months');
+        let duration = parseInt(monthsInput.value);
+        
+        if(isNaN(duration) || duration < 1) duration = 1;
+        
+        const total = price * duration;
+        document.getElementById('amount').value = total.toFixed(2);
+
+        // Calculate End Date
+        const startDateStr = document.getElementById('start_date').value;
+        if(startDateStr) {
+            const startDate = new Date(startDateStr);
+            let endDate = new Date(startDate);
+            
+            if(isWalkIn) {
+                endDate.setDate(startDate.getDate() + (duration - 1));
+            } else {
+                endDate.setMonth(startDate.getMonth() + duration);
+                endDate.setDate(endDate.getDate() - 1);
+            }
+            
+            const endPicker = document.getElementById('end_date')._flatpickr;
+            if(endPicker) {
+                endPicker.setDate(endDate);
+            }
+        }
+    }
 
     // Image Cropper Logic
     let cropper;

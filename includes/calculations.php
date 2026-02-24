@@ -1,16 +1,5 @@
 <?php
 
-function calculate_end_date($start_date, $duration, $is_walk_in) {
-    $start = new DateTime($start_date);
-    if ($is_walk_in) {
-        $interval = new DateInterval("P{$duration}D"); // P for period, D for days
-    } else {
-        $interval = new DateInterval("P{$duration}M"); // P for period, M for months
-    }
-    $start->add($interval);
-    return $start->format('Y-m-d');
-}
-
 function get_membership_duration_in_months_or_days($start_date, $end_date, $is_walk_in) {
     $start = new DateTime($start_date);
     $end = new DateTime($end_date);

@@ -39,12 +39,20 @@ if (isset($_GET['return_to']) && !empty($_GET['return_to'])) {
 $is_walk_in_member = strpos($member['membership_type'], 'Walk-in') !== false;
 $since_label = $is_walk_in_member ? "First Visit" : "Member Since";
 
-// Get Member Since (Earliest Payment Date)
-$stmt_since = $conn->prepare("SELECT MIN(payment_date) as member_since FROM payments WHERE member_id = ?");
+// Get Member Since (Earliest Payment Date) and payment count
+$stmt_since = $conn->prepare("SELECT MIN(payment_date) as member_since, COUNT(id) as payment_count FROM payments WHERE member_id = ?");
 $stmt_since->bind_param("i", $id);
 $stmt_since->execute();
 $since_row = $stmt_since->get_result()->fetch_assoc();
 $member_since = $since_row['member_since'] ? date('M d, Y', strtotime($since_row['member_since'])) : date('M d, Y', strtotime($member['start_date']));
+$payment_count = $since_row['payment_count'] ?? 0;
+
+$can_renew = true;
+$first_payment_date = $since_row['member_since'] ? date('Y-m-d', strtotime($since_row['member_since'])) : null;
+// Disable renew if the member was added today (first payment is today and there's only one payment)
+if ($first_payment_date === date('Y-m-d') && $payment_count <= 1) {
+    $can_renew = false;
+}
 
 // Calculate Age
 $age = "N/A";
@@ -56,10 +64,12 @@ if(!empty($member['birth_date'])){
 
 // Calculate Remaining Days
 $end_date = new DateTime($member['end_date']);
+$start_date = new DateTime($member['start_date']);
 $now = new DateTime('today');
 
-// The difference should always be calculated from today to the end date.
-$diff = $now->diff($end_date);
+// If membership hasn't started, calculate from start date
+$base = ($now < $start_date) ? $start_date : $now;
+$diff = $base->diff($end_date);
 $remaining_days = (int)$diff->format('%r%a');
 if($member['status'] == 'Active' && $remaining_days >= 0) $remaining_days++; // Add 1 to be inclusive of the end day
 
@@ -153,7 +163,11 @@ $payments = $stmt_pay->get_result();
         <div class="card-header border-0 bg-transparent d-block d-md-flex justify-content-md-between align-items-md-center pt-4 px-4">
             <h4 class="mb-3 mb-md-0 text-danger fw-bold"><i class="bi bi-person-vcard"></i> Member Profile</h4>
             <div class="d-flex gap-2 flex-wrap justify-content-between justify-content-md-end">
-                <a href="renew_member.php?id=<?= $member['id'] ?>" class="btn btn-danger"><i class="bi bi-arrow-repeat"></i> Renew</a>
+                <?php if ($can_renew): ?>
+                    <a href="renew_member.php?id=<?= $member['id'] ?>" class="btn btn-danger"><i class="bi bi-arrow-repeat"></i> Renew</a>
+                <?php else: ?>
+                    <button class="btn btn-danger" disabled title="Cannot renew a member on the same day they are added."><i class="bi bi-arrow-repeat"></i> Renew</button>
+                <?php endif; ?>
                 <a href="edit_member.php?id=<?= $member['id'] ?>" class="btn btn-light"><i class="bi bi-pencil"></i> Edit</a>
                 <button type="button" class="btn btn-dark" onclick="confirmDelete(<?= $member['id'] ?>)"><i class="bi bi-trash"></i> Delete</button>
                 <a href="<?= htmlspecialchars($back_url) ?>" class="btn btn-outline-light"><i class="bi bi-arrow-left"></i> Back</a>

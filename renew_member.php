@@ -31,6 +31,10 @@ if(isset($_POST['renew'])){
     $membership_type = $_POST['membership_type'];
     $start = $_POST['start']; // New start date
 
+    if ($start < date('Y-m-d')) {
+        die('<div class="alert alert-danger">Start date cannot be in the past.</div>');
+    }
+
     $stmt_check = $conn->prepare("SELECT price, duration_unit FROM membership_types WHERE type_name = ?");
     $stmt_check->bind_param("s", $membership_type);
     $stmt_check->execute();
@@ -66,8 +70,11 @@ if(isset($_POST['renew'])){
         if (!$update->execute()) throw new Exception($conn->error);
 
         // Insert new payment record
+        // Cash Basis Logic:
+        // If start date is in the future, record payment TODAY.
+        $payment_date = ($start > date('Y-m-d')) ? date('Y-m-d') : $start;
         $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)");
-        $stmt_pay->bind_param("ids", $id, $amount, $start);
+        $stmt_pay->bind_param("ids", $id, $amount, $payment_date);
         if (!$stmt_pay->execute()) throw new Exception($conn->error);
 
         $conn->commit();
@@ -219,6 +226,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         altInput: true,
         altFormat: "F j, Y",
         defaultDate: "today",
+        minDate: "today",
         onChange: function(selectedDates, dateStr, instance) {
             calculateAmount();
         }

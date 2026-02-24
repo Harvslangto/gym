@@ -136,6 +136,11 @@ if($type && $search){
         }
         
         @media (max-width: 576px) {
+            /* Disable horizontal scroll on mobile and rely on the card layout */
+            .table-responsive {
+                overflow-x: hidden;
+            }
+
             /* Hide table headers */
             .table thead { display: none; }
             
@@ -249,16 +254,26 @@ if($type && $search){
                 <?php while($row = $result->fetch_assoc()): ?>
                     <?php
                         $end = new DateTime($row['end_date']);
+                        $start = new DateTime($row['start_date']);
                         $now = new DateTime('today');
-                        $diff = $now->diff($end);
+                        // If membership hasn't started, calculate from start date
+                        $base = ($now < $start) ? $start : $now;
+                        $diff = $base->diff($end);
                         $days = (int)$diff->format('%r%a');
                         if($row['status'] == 'Active' && $days >= 0) $days++;
                     ?>
                     <tr onclick="window.location='view_member.php?id=<?= $row['id'] ?>';" style="cursor: pointer;">
                         <td data-label="Name">
-                            <span class="fw-bold">
-                                <?= htmlspecialchars($row['full_name']) ?>
-                            </span>
+                            <div class="d-flex align-items-center justify-content-center justify-content-md-start">
+                                <?php if(!empty($row['photo']) && file_exists($row['photo'])): ?>
+                                    <img src="<?= $row['photo'] ?>" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover; border: 2px solid #dc3545;">
+                                <?php else: ?>
+                                    <div class="rounded-circle bg-dark text-danger d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px; border: 2px solid #444; font-weight: bold; flex-shrink: 0;">
+                                        <?= strtoupper(substr($row['full_name'], 0, 1)) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <span class="fw-bold"><?= htmlspecialchars($row['full_name']) ?></span>
+                            </div>
                         </td>
                         <td data-label="Type"><?= htmlspecialchars($row['membership_type']) ?></td>
                         <td data-label="Start Date"><?= date('M d, Y', strtotime($row['start_date'])) ?></td>

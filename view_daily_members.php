@@ -12,15 +12,29 @@ if(!isset($_GET['date']) || empty($_GET['date'])){
 
 $date = $_GET['date'];
 $formatted_date = date('F j, Y', strtotime($date));
+$type = isset($_GET['type']) ? $_GET['type'] : '';
 
-$stmt = $conn->prepare("
-    SELECT m.id, m.full_name, m.membership_type, p.amount 
-    FROM payments p 
-    JOIN members m ON p.member_id = m.id 
-    WHERE p.payment_date = ? 
-    ORDER BY m.full_name ASC
-");
-$stmt->bind_param("s", $date);
+if (!empty($type)) {
+    $formatted_date .= " (" . htmlspecialchars($type) . ")";
+    $stmt = $conn->prepare("
+        SELECT m.id, m.full_name, m.membership_type, m.photo, p.amount 
+        FROM payments p 
+        JOIN members m ON p.member_id = m.id 
+        WHERE p.payment_date = ? AND m.membership_type = ?
+        ORDER BY m.full_name ASC
+    ");
+    $stmt->bind_param("ss", $date, $type);
+} else {
+    $stmt = $conn->prepare("
+        SELECT m.id, m.full_name, m.membership_type, m.photo, p.amount 
+        FROM payments p 
+        JOIN members m ON p.member_id = m.id 
+        WHERE p.payment_date = ? 
+        ORDER BY m.full_name ASC
+    ");
+    $stmt->bind_param("s", $date);
+}
+
 $stmt->execute();
 $result = $stmt->get_result();
 
@@ -35,7 +49,7 @@ $back_url = "dashboard.php" . ($dashboard_qs ? "?$dashboard_qs" : "");
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Members on <?= htmlspecialchars($formatted_date) ?></title>
+    <title>Payments Received on <?= htmlspecialchars($formatted_date) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Russo+One&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -90,13 +104,53 @@ $back_url = "dashboard.php" . ($dashboard_qs ? "?$dashboard_qs" : "");
             box-shadow: 0 6px 15px rgba(0,0,0,0.5);
             background: linear-gradient(145deg, #2c2c2c, #3d3d3d);
         }
+        @media (max-width: 576px) {
+            .table-responsive { overflow-x: hidden; }
+            .table thead { display: none; }
+            .table tbody tr {
+                display: block;
+                margin-bottom: 1rem;
+                background: rgba(255, 255, 255, 0.05);
+                color: white;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 12px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            }
+            .table tbody td {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 0.8rem 1rem;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                text-align: right;
+            }
+            .table tbody td::before {
+                content: attr(data-label);
+                font-weight: 600;
+                color: #aaa;
+                text-align: left;
+            }
+            .table tbody td:first-child {
+                background: rgba(220, 53, 69, 0.2);
+                justify-content: center;
+                font-size: 1.1rem;
+                border-radius: 12px 12px 0 0;
+                border-bottom: 1px solid rgba(220, 53, 69, 0.3);
+            }
+            .table tbody td:first-child::before { display: none; }
+            .table tbody td:last-child { border-bottom: none; }
+            .table-hover tbody tr:hover {
+                transform: scale(1.02);
+                transition: transform 0.2s ease-in-out;
+            }
+        }
     </style>
 </head>
 <body class="text-white">
 <div class="container-xl my-3">
 
     <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-3">
-        <h2 class="text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Members on <?= htmlspecialchars($formatted_date) ?></h2>
+        <h2 class="text-uppercase" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.5);">Payments Received on <?= htmlspecialchars($formatted_date) ?></h2>
         <a href="<?= htmlspecialchars($back_url) ?>" class="btn btn-dark border-secondary shadow-sm"><i class="bi bi-arrow-left me-1"></i> Back to Dashboard</a>
     </div>
 
@@ -114,14 +168,23 @@ $back_url = "dashboard.php" . ($dashboard_qs ? "?$dashboard_qs" : "");
                 <tbody>
                 <?php if($result->num_rows > 0): ?>
                     <?php while($row = $result->fetch_assoc()): ?>
-                    <tr>
-                        <td>
-                            <a href="view_member.php?id=<?= $row['id'] ?>&return_to=<?= urlencode($_SERVER['REQUEST_URI']) ?>" class="text-danger text-decoration-none fw-bold">
-                                <?= htmlspecialchars($row['full_name']) ?>
-                            </a>
+                    <tr style="cursor: pointer;" onclick="window.location='view_member.php?id=<?= $row['id'] ?>&return_to=<?= urlencode($_SERVER['REQUEST_URI']) ?>'">
+                        <td data-label="Name">
+                            <div class="d-flex align-items-center justify-content-center justify-content-md-start">
+                                <?php if(!empty($row['photo']) && file_exists($row['photo'])): ?>
+                                    <img src="<?= $row['photo'] ?>" class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover; border: 2px solid #dc3545;">
+                                <?php else: ?>
+                                    <div class="rounded-circle bg-dark text-danger d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px; border: 2px solid #444; font-weight: bold; flex-shrink: 0;">
+                                        <?= strtoupper(substr($row['full_name'], 0, 1)) ?>
+                                    </div>
+                                <?php endif; ?>
+                                <span class="fw-bold text-danger">
+                                    <?= htmlspecialchars($row['full_name']) ?>
+                                </span>
+                            </div>
                         </td>
-                        <td><?= htmlspecialchars($row['membership_type']) ?></td>
-                        <td>₱<?= htmlspecialchars(number_format($row['amount'], 2)) ?></td>
+                        <td data-label="Membership Type"><?= htmlspecialchars($row['membership_type']) ?></td>
+                        <td data-label="Amount Paid">₱<?= htmlspecialchars(number_format($row['amount'], 2)) ?></td>
                     </tr>
                     <?php endwhile; ?>
                 <?php else: ?>
@@ -149,6 +212,10 @@ body.light-mode .table tbody td { border-bottom-color: #dee2e6 !important; }
 body.light-mode .table-hover tbody tr:hover { background-color: rgba(0,0,0,0.05) !important; color: #212529 !important; }
 body.light-mode .btn-outline-light { color: #212529; border-color: #212529; }
 body.light-mode .btn-outline-light:hover { color: #fff; background-color: #212529; }
+@media (max-width: 576px) {
+    body.light-mode .table tbody tr { background: #fff !important; border: 1px solid #dee2e6 !important; }
+    body.light-mode .table tbody td:first-child { background: rgba(220, 53, 69, 0.1) !important; color: #dc3545 !important; border-bottom-color: rgba(220, 53, 69, 0.2) !important; }
+}
 </style>
 <script>
 const themeBtn = document.createElement('button');

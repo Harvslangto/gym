@@ -42,19 +42,25 @@ if(isset($_POST['login'])){
                     $_SESSION['last_activity'] = time(); // Initialize timeout timer
                     
                     // Reset attempts on success
-                    $conn->query("DELETE FROM login_attempts WHERE ip_address = '$ip'");
+                    $stmt_reset = $conn->prepare("DELETE FROM login_attempts WHERE ip_address = ?");
+                    $stmt_reset->bind_param("s", $ip);
+                    $stmt_reset->execute();
                     
             logActivity($conn, $_SESSION['admin_id'], 'Login', 'Admin logged in successfully');
             header("Location: index.php");
             exit;
         } else {
                     // Record failed attempt
-                    $conn->query("INSERT INTO login_attempts (ip_address, attempts) VALUES ('$ip', 1) ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt = NOW()");
+                    $stmt_fail = $conn->prepare("INSERT INTO login_attempts (ip_address, attempts) VALUES (?, 1) ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt = NOW()");
+                    $stmt_fail->bind_param("s", $ip);
+                    $stmt_fail->execute();
                     $error = "Invalid username or password";
         }
     } else {
                 // Record failed attempt (even for unknown user to prevent enumeration timing attacks)
-                $conn->query("INSERT INTO login_attempts (ip_address, attempts) VALUES ('$ip', 1) ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt = NOW()");
+                $stmt_fail = $conn->prepare("INSERT INTO login_attempts (ip_address, attempts) VALUES (?, 1) ON DUPLICATE KEY UPDATE attempts = attempts + 1, last_attempt = NOW()");
+                $stmt_fail->bind_param("s", $ip);
+                $stmt_fail->execute();
                 $error = "Invalid username or password";
     }
         }

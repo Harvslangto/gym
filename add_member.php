@@ -135,7 +135,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Membership Type</label>
-                        <select name="membership_type" id="membership_type" class="form-select" onchange="calculateAmount()">
+                        <select name="membership_type" id="membership_type" class="form-select" onchange="handleMembershipTypeChange(); calculateAmount();">
                             <?php while($t = $types_result->fetch_assoc()): 
                                 $is_walk_in = ($t['duration_unit'] == 'Day') ? '1' : '0';
                                 $unit_label = ($t['duration_unit'] == 'Day') ? '/day' : '/mo';
@@ -308,14 +308,15 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                 try {
                 $stmt = $conn->prepare("INSERT INTO members (full_name, contact_number, address, birth_date, gender, membership_type, amount, start_date, end_date, status, photo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', ?)");
                 $stmt->bind_param("ssssssdsss", $name, $contact, $address, $birth_date, $gender, $membership_type, $amount, $start, $end, $photo_path);
-
                     if(!$stmt->execute()){
                         throw new Exception($stmt->error);
                     }
 
                     $member_id = $stmt->insert_id; 
-                    $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)"); 
-                    $stmt_pay->bind_param("ids", $member_id, $amount, $start); 
+                    // Cash Basis Logic: If start date is in the future, record payment TODAY.
+                    $payment_date = ($start > date('Y-m-d')) ? date('Y-m-d') : $start;
+                    $stmt_pay = $conn->prepare("INSERT INTO payments (member_id, amount, payment_date) VALUES (?, ?, ?)");
+                    $stmt_pay->bind_param("ids", $member_id, $amount, $payment_date);
                     if(!$stmt_pay->execute()){
                         throw new Exception($stmt_pay->error);
                     }
@@ -381,6 +382,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         altInput: true,
         altFormat: "F j, Y",
         defaultDate: "today",
+        minDate: "today",
         onChange: function(selectedDates, dateStr, instance) {
             calculateAmount();
         }
@@ -392,8 +394,26 @@ $types_result = $conn->query("SELECT * FROM membership_types");
     });
 
     document.addEventListener("DOMContentLoaded", function() {
+        handleMembershipTypeChange();
         calculateAmount();
     });
+
+    function handleMembershipTypeChange() {
+        const typeSelect = document.getElementById('membership_type');
+        const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+        const isWalkIn = selectedOption.dataset.isWalkIn === '1';
+        const monthsInput = document.getElementById('months');
+        const durationLabel = document.getElementById('duration_label');
+
+        if (isWalkIn) {
+            monthsInput.value = 1;
+            monthsInput.readOnly = true;
+            durationLabel.textContent = 'Days';
+        } else {
+            monthsInput.readOnly = false;
+            durationLabel.textContent = 'Months';
+        }
+    }
 
     // Cropper Logic
     let cropper;
