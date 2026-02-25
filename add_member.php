@@ -265,7 +265,13 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                     // Logic for days
                     $start_dt->modify('+' . ($months - 1) . ' days');
                 } else {
-                    $start_dt->modify('+' . $months . ' months')->modify('-1 day');
+                    // Special logic for February start to ensure 30 days
+                    if((int)$start_dt->format('n') === 2) {
+                        $days_to_add = $months * 30;
+                        $start_dt->modify('+' . $days_to_add . ' days')->modify('-1 day');
+                    } else {
+                        $start_dt->modify('+' . $months . ' months')->modify('-1 day');
+                    }
                 }
                 $end = $start_dt->format('Y-m-d');
 
@@ -397,6 +403,44 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         handleMembershipTypeChange();
         calculateAmount();
     });
+
+    function calculateAmount() {
+        const typeSelect = document.getElementById('membership_type');
+        const selectedOption = typeSelect.options[typeSelect.selectedIndex];
+        const price = parseFloat(selectedOption.dataset.price);
+        const isWalkIn = selectedOption.dataset.isWalkIn === '1';
+        
+        const monthsInput = document.getElementById('months');
+        let duration = parseInt(monthsInput.value);
+        
+        if(isNaN(duration) || duration < 1) duration = 1;
+        
+        const total = price * duration;
+        document.getElementById('amount').value = total.toFixed(2);
+
+        const startDateStr = document.getElementById('start_date').value;
+        if(startDateStr) {
+            const startDate = new Date(startDateStr);
+            let endDate = new Date(startDate);
+            
+            if(isWalkIn) {
+                endDate.setDate(startDate.getDate() + (duration - 1));
+            } else {
+                // Special logic for February start: 1 month = 30 days
+                if (startDate.getMonth() === 1) { 
+                    endDate.setDate(startDate.getDate() + (duration * 30) - 1);
+                } else {
+                    endDate.setMonth(startDate.getMonth() + duration);
+                    endDate.setDate(endDate.getDate() - 1);
+                }
+            }
+            
+            const endPicker = document.getElementById('end_date')._flatpickr;
+            if(endPicker) {
+                endPicker.setDate(endDate);
+            }
+        }
+    }
 
     function handleMembershipTypeChange() {
         const typeSelect = document.getElementById('membership_type');
