@@ -84,7 +84,13 @@ if(isset($_POST['update'])){
     if($is_walk_in_post){
         $start_dt->modify('+' . ($months - 1) . ' days');
     } else {
-        $start_dt->modify('+' . $months . ' months')->modify('-1 day');
+        // Special logic for February start to ensure 30 days
+        if((int)$start_dt->format('n') === 2) {
+            $days_to_add = $months * 30;
+            $start_dt->modify('+' . $days_to_add . ' days')->modify('-1 day');
+        } else {
+            $start_dt->modify('+' . $months . ' months')->modify('-1 day');
+        }
     }
     $end = $start_dt->format('Y-m-d');
 
@@ -440,7 +446,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         dateFormat: "Y-m-d",
         altInput: true,
         altFormat: "F j, Y",
-        minDate: "today",
+        minDate: "2026-02-03",
         onChange: function(selectedDates, dateStr, instance) {
             calculateAmount(true);
         }
@@ -506,8 +512,13 @@ $types_result = $conn->query("SELECT * FROM membership_types");
             if(isWalkIn) {
                 endDate.setDate(startDate.getDate() + (duration - 1));
             } else {
-                endDate.setMonth(startDate.getMonth() + duration);
-                endDate.setDate(endDate.getDate() - 1);
+                // Special logic for February start: 1 month = 30 days
+                if (startDate.getMonth() === 1) { 
+                    endDate.setDate(startDate.getDate() + (duration * 30) - 1);
+                } else {
+                    endDate.setMonth(startDate.getMonth() + duration);
+                    endDate.setDate(endDate.getDate() - 1);
+                }
             }
             
             const endPicker = document.getElementById('end_date')._flatpickr;

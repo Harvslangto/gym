@@ -348,7 +348,7 @@ $qs = http_build_query([
                         <div class="col-12 col-sm-6 col-md-auto">
                             <select name="day" class="form-select" style="background: #fff; color: #000; border: 1px solid #4a0000; text-align: center;">
                                 <option value="">All Days</option>
-                                <?php $current_d = date('j'); $current_m = date('n'); $current_y = date('Y'); $days_in_month = cal_days_in_month(CAL_GREGORIAN, $selected_month, $selected_year); for($d = $days_in_month; $d >= 1; $d--){ $sel = ($selected_day == $d) ? 'selected' : ''; $label = ($selected_month == $current_m && $selected_year == $current_y && $d == $current_d) ? "Today" : $d; echo "<option value='$d' $sel>$label</option>"; } ?>
+                                <?php $current_d = date('j'); $current_m = date('n'); $current_y = date('Y'); $days_in_month = ($selected_month == 2) ? 30 : cal_days_in_month(CAL_GREGORIAN, $selected_month, $selected_year); for($d = $days_in_month; $d >= 1; $d--){ $sel = ($selected_day == $d) ? 'selected' : ''; $label = ($selected_month == $current_m && $selected_year == $current_y && $d == $current_d) ? "Today" : $d; echo "<option value='$d' $sel>$label</option>"; } ?>
                             </select>
                         </div>
                         <div class="col-12 col-sm-6 col-md-auto">
@@ -527,7 +527,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const month = parseInt(monthSelect.value);
         
         // In JS, month is 0-indexed. The day '0' of the next month gives the last day of the current month.
-        const daysInMonth = new Date(year, month, 0).getDate();
+        let daysInMonth = new Date(year, month, 0).getDate();
+        if (month === 2) { daysInMonth = 30; }
 
         const currentDayValue = daySelect.value;
         
