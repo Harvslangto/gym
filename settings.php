@@ -63,6 +63,8 @@ $dashboard_qs = http_build_query([
 <html>
 <head>
     <title>Settings</title>
+    <link rel="icon" href="logo/logo.jpg" type="image/jpeg">
+    <link rel="apple-touch-icon" href="logo/logo.jpg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Russo+One&display=swap" rel="stylesheet">

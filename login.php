@@ -71,6 +71,8 @@ if(isset($_POST['login'])){
 <html>
 <head>
     <title>Admin Login</title>
+    <link rel="icon" href="logo/logo.jpg" type="image/jpeg">
+    <link rel="apple-touch-icon" href="logo/logo.jpg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Russo+One&display=swap" rel="stylesheet">
@@ -118,9 +120,15 @@ if(isset($_POST['login'])){
             box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
             background: linear-gradient(45deg, #dc3545, #ff4d4d);
         }
+        .login-logo {
+            width: 180px;
+            height: 180px;
+            object-fit: cover;
+            margin-bottom: 15px;
+        }
         @media (max-width: 576px) {
             .login-card { padding: 1.5rem; }
-            .login-logo { width: 120px !important; height: 120px !important; }
+            .login-logo { width: 120px; height: 120px; }
             h3 { font-size: 1.5rem; }
         }
     </style>
@@ -128,7 +136,7 @@ if(isset($_POST['login'])){
 <body class="d-flex align-items-center justify-content-center p-3">
     <div class="login-card">
         <div class="text-center mb-4">
-            <img src="logo/logo.jpg" alt="Logo" class="rounded-circle login-logo" style="width: 180px; height: 180px; object-fit: cover; margin-bottom: 15px;">
+            <img src="logo/logo.jpg" alt="Logo" class="rounded-circle login-logo">
             <h3 class="mt-2">TRIZEN FITNESS HUB</h3>
             <p class="text-secondary" style="letter-spacing: 4px; text-transform: uppercase; font-size: 0.8rem;">Admin Portal</p>
         </div>

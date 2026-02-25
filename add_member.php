@@ -12,6 +12,8 @@ $types_result = $conn->query("SELECT * FROM membership_types");
 <html>
 <head>
     <title>Add Member</title>
+    <link rel="icon" href="logo/logo.jpg" type="image/jpeg">
+    <link rel="apple-touch-icon" href="logo/logo.jpg">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
@@ -284,7 +286,6 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                         
                         if($data !== false){
                             $target_dir = "uploads/";
-                            if(!is_dir($target_dir)) mkdir($target_dir);
                             $photo_path = $target_dir . bin2hex(random_bytes(16)) . "." . $type;
                             file_put_contents($photo_path, $data);
                         }
@@ -293,7 +294,6 @@ $types_result = $conn->query("SELECT * FROM membership_types");
                     $check = getimagesize($_FILES["photo"]["tmp_name"]);
                     if($check !== false) {
                         $target_dir = "uploads/";
-                        if(!is_dir($target_dir)) mkdir($target_dir);
                         $ext = strtolower(pathinfo($_FILES["photo"]["name"], PATHINFO_EXTENSION));
                         $allowed_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
                         if(!in_array($ext, $allowed_exts)){
@@ -382,7 +382,7 @@ $types_result = $conn->query("SELECT * FROM membership_types");
         altInput: true,
         altFormat: "F j, Y",
         defaultDate: "today",
-        minDate: "today",
+        minDate: "2026-02-03",
         onChange: function(selectedDates, dateStr, instance) {
             calculateAmount();
         }
